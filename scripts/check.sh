@@ -46,7 +46,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 SHELLCHECK_IMAGE="koalaman/shellcheck:v0.11.0"
-PYTHON_IMAGE="python:3.12-alpine"
+PYTHON_IMAGE="python:3.12.16-alpine3.24"
 PYTE_VERSION="0.8.2"
 # Only these may appear in yaml without a :-default (ARCHITECTURE.md).
 ALLOWED_BARE="APPDATA MEDIA_ROOT PGID PUID STACK_PREFIX TZ UMASK"
@@ -136,6 +136,26 @@ orph="$(comm -13 <(sort <<< "$KEYS") <(sort <<< "$mon"))"
 [ -n "$miss" ] && err "no monitor in kuma-monitors.py for: $(echo "$miss" | tr '\n' ' ')"
 [ -n "$orph" ] && err "monitor for a service not in the catalogue: $(echo "$orph" | tr '\n' ' ')"
 [ -z "$miss$orph" ] && ok "monitors: every service has one ($(wc -l <<< "$mon"))"
+
+# Images pinned: a moving tag means two installs a month apart run
+# different software (docs/updating.md). The form is repo:${X_VERSION:-tag},
+# or repo:tag for images that must not be overridden.
+n=0; c=0
+while IFS= read -r line; do
+  ref="${line#*image:}"; ref="${ref//[[:space:]\"\']/}"; where="${line%%:*}"
+  c=$((c+1))
+  if [[ $ref =~ ^[^$]+:\$\{[A-Z0-9_]+_VERSION:-([^}]+)\}$ ]]; then tag="${BASH_REMATCH[1]}"
+  elif [[ $ref == *\$* ]]; then err "image: use \${NAME_VERSION:-tag}: $ref ($where)"; n=$((n+1)); continue
+  elif [[ ${ref##*/} == *:* ]]; then tag="${ref##*:}"
+  else tag=""; fi
+  if [ -z "$tag" ] || [[ $tag =~ ^(latest|release|stable|master|main|nightly|develop|dev|edge|beta)$ ]] \
+     || [[ $tag =~ ^v?[0-9]+(-[a-z0-9]+)?$ ]] || [[ $tag == version-* ]]; then
+    err "image not pinned to an exact version: $ref ($where)"; n=$((n+1))
+  fi
+done < <(grep -HE '^[[:space:]]*image:' stacks/*.yaml hw/*.yaml compose.yaml)
+[ "$n" -eq 0 ] && ok "images: all $c pinned to an exact version"
+k_py="$(sed -n 's/^PYTHON_IMAGE="\(.*\)"$/\1/p' scripts/kuma-bootstrap.sh)"
+[ "$k_py" = "$PYTHON_IMAGE" ] || err "kuma-bootstrap.sh and check.sh use different Python images (${k_py:-none} vs $PYTHON_IMAGE)"
 
 # ------------------------------------------------------------ leaks
 h1 "Leaks"
@@ -289,8 +309,13 @@ if [ -f "$S/.env" ]; then
   step "re-run, + ntfy and vaultwarden" yes2 "$rc"
   secrets > "$WORK/secrets1"
   sed -i "s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$ALL/" "$S/.env"
+  # A version override is how users roll back; a re-run must keep it.
+  echo "SONARR_VERSION=0.0.0-check" >> "$S/.env"
   run_setup yes3 --yes; rc=$?
   step "re-run, + every other service" yes3 "$rc"
+  if ! grep -qx 'SONARR_VERSION=0.0.0-check' "$S/.env"; then err "re-run dropped a version override from .env"
+  elif ! grep -q 'held at a version override: SONARR_VERSION' "$WORK/yes3.log"; then err "re-run did not warn about the version override"
+  else ok "re-run kept the version override and said so"; fi
   # A re-run must keep every existing secret (a database reads its
   # password once). Lines from before that are gone were changed.
   if [ ! -s "$WORK/secrets1" ]; then err "re-run test: no secrets were generated to compare"

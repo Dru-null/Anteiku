@@ -46,13 +46,14 @@ Home recording and disc-ripping rules differ by country. Check yours.
 |---|---|
 | `doctor.sh` | Read-only survey: CPU, RAM, GPU, render nodes, Docker, ports, disk. Writes nothing. Prints no secrets, so it's safe to paste into an issue. |
 | `setup.sh` | Interactive checklist. Detects clashes, shifts ports, writes `.env`. `--dry-run` shows every decision and writes nothing. |
-| `stacks/*.yaml` | The services, templated. Every value is a `${VAR}`. |
+| `stacks/*.yaml` | The services, templated. Every value is a `${VAR}`; every image is pinned to an exact version. |
 | `scripts/backup.sh` | Backs up configs, secrets and databases — not your media. Warns if the destination is the same disk. |
 | `docs/backups.md` | **Read before you put anything you care about on here.** |
 | `scripts/ntfy-setup.sh` | Creates the ntfy user and topic so backups and uptime alerts reach your phone. |
 | `scripts/kuma-bootstrap.sh` | Creates an uptime monitor for every service you installed, grouped sensibly. Re-runnable. |
 | `stacks/*.md` | One guide per stack: what each service is for, setup order, the traps. |
 | `docs/remote-access.md` | Getting in from outside without exposing anything. Read before forwarding any port. |
+| `docs/updating.md` | Why versions are pinned, how to update one service, how to roll back. |
 | `ports.md` | **Generated.** Every service you installed, the port it actually got, and the name other containers reach it by. Rewritten each `setup.sh` run. |
 
 Nothing is started for you. `setup.sh` writes config and stops; you read it,
@@ -119,6 +120,14 @@ and secrets are small and precious; your media library is large and
 re-obtainable. `scripts/backup.sh` backs up the first kind, and
 `docs/backups.md` covers scheduling and — the part people skip — how to
 verify a restore works.
+
+## Updating
+
+Nothing updates by itself. Every image is pinned to the version that was
+tested, so an install today and one next month run the same software.
+To move a service on (or back), set its version in `.env` and run
+`docker compose up -d`. Read the release notes and back up first; see
+[`docs/updating.md`](docs/updating.md).
 
 ## Getting to it from outside
 

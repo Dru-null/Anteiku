@@ -29,7 +29,7 @@ services:
   # Central place to manage indexers; syncs them to the *arrs below.
   # Ships empty. You add your own.
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:${PROWLARR_VERSION:-2.7.0.5723-ls166}
     container_name: ${STACK_PREFIX}prowlarr
     profiles: ["prowlarr"]
     restart: unless-stopped
@@ -49,7 +49,7 @@ services:
   # Limits). With no limit, nothing ever retires a finished torrent and
   # the download dir grows until the disk is full.
   qbittorrent:
-    image: ghcr.io/hotio/qbittorrent:latest
+    image: ghcr.io/hotio/qbittorrent:${QBITTORRENT_VERSION:-release-5.3.0}
     container_name: ${STACK_PREFIX}qbittorrent
     profiles: ["qbittorrent"]
     restart: unless-stopped
@@ -65,7 +65,7 @@ services:
 
   # --- TV ---------------------------------------------------------------
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr:${SONARR_VERSION:-4.0.20.3014-ls1}
     container_name: ${STACK_PREFIX}sonarr
     profiles: ["sonarr"]
     restart: unless-stopped
@@ -80,7 +80,7 @@ services:
 
   # --- Movies -----------------------------------------------------------
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr:${RADARR_VERSION:-6.4.4.10685-ls324}
     container_name: ${STACK_PREFIX}radarr
     profiles: ["radarr"]
     restart: unless-stopped
@@ -95,7 +95,7 @@ services:
 
   # --- Music ------------------------------------------------------------
   lidarr:
-    image: lscr.io/linuxserver/lidarr:latest
+    image: lscr.io/linuxserver/lidarr:${LIDARR_VERSION:-3.1.6.5079-ls46}
     container_name: ${STACK_PREFIX}lidarr
     profiles: ["lidarr"]
     restart: unless-stopped
@@ -113,7 +113,7 @@ services:
   # LazyLibrarian is actively maintained and covers ebooks + audiobooks.
   # The calibre mod gives it format conversion.
   lazylibrarian:
-    image: lscr.io/linuxserver/lazylibrarian:latest
+    image: lscr.io/linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION:-8c70ea4d-ls386}
     container_name: ${STACK_PREFIX}lazylibrarian
     profiles: ["lazylibrarian"]
     restart: unless-stopped
@@ -129,7 +129,7 @@ services:
 
   # --- Subtitles --------------------------------------------------------
   bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
+    image: lscr.io/linuxserver/bazarr:${BAZARR_VERSION:-v1.6.2-ls370}
     container_name: ${STACK_PREFIX}bazarr
     profiles: ["bazarr"]
     restart: unless-stopped
@@ -155,7 +155,7 @@ services:
   # 1000, its config directory must still be owned by 1000:1000 -
   # setup.sh warns when that applies.
   seerr:
-    image: ghcr.io/seerr-team/seerr:latest
+    image: ghcr.io/seerr-team/seerr:${SEERR_VERSION:-v3.5.1}
     container_name: ${STACK_PREFIX}seerr
     profiles: ["seerr"]
     restart: unless-stopped

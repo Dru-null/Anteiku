@@ -966,6 +966,18 @@ TMP="$(mktemp)"
     echo "PORT_$(echo "$k" | tr '[:lower:]-' '[:upper:]_')=${PORT_FINAL[$k]}"
   done
   for v in "${!EXTRA_FINAL[@]}"; do echo "$v=${EXTRA_FINAL[$v]}"; done | sort
+  # Version overrides (docs/updating.md): kept from the old .env like any
+  # other value. Only names the stacks actually read are written.
+  OVERRIDES=()
+  while IFS= read -r v; do
+    [ -n "${!v:-}" ] && OVERRIDES+=("$v=${!v}")
+  done < <(grep -ohE '\$\{[A-Z0-9_]+_VERSION:-' stacks/*.yaml | sed -E 's/^\$\{//; s/:-$//' | sort -u)
+  if [ "${#OVERRIDES[@]}" -gt 0 ]; then
+    echo
+    echo "# Version overrides: these run instead of the version pinned in"
+    echo "# stacks/. Delete a line to go back to the pin. See docs/updating.md."
+    printf '%s\n' "${OVERRIDES[@]}"
+  fi
 } > "$TMP"
 
 # Never show secrets on screen: people paste this output into issues and
@@ -973,6 +985,10 @@ TMP="$(mktemp)"
 SECRET_RE="${SECRET_KEYS// /|}"
 sed -E "s/^(${SECRET_RE})=.*/\1=${C_GREY}<hidden>${C_RST}/; s/^/  /" "$TMP"
 note "Passwords are hidden here. They are in $ENV_FILE (readable only by you)."
+if [ "${#OVERRIDES[@]}" -gt 0 ]; then
+  warn "${#OVERRIDES[@]} service(s) held at a version override: ${OVERRIDES[*]%%=*}"
+  note "They won't move with the pinned versions until you delete those lines."
+fi
 
 echo
 if [ "$DRY_RUN" -eq 1 ]; then

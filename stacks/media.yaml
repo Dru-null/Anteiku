@@ -20,7 +20,7 @@ services:
   # watch history and metadata will not resolve. A fresh install should
   # leave it as /data.
   jellyfin:
-    image: lscr.io/linuxserver/jellyfin:latest
+    image: lscr.io/linuxserver/jellyfin:${JELLYFIN_VERSION:-12.4ubu2604-ls57}
     container_name: ${STACK_PREFIX}jellyfin
     profiles: ["jellyfin"]
     restart: unless-stopped
@@ -47,7 +47,7 @@ services:
   # Read-only mount: a music player has no business writing to your
   # library. Subsonic-compatible, so most mobile music apps work with it.
   navidrome:
-    image: deluan/navidrome:latest
+    image: deluan/navidrome:${NAVIDROME_VERSION:-0.64.2}
     container_name: ${STACK_PREFIX}navidrome
     profiles: ["navidrome"]
     restart: unless-stopped
@@ -68,7 +68,7 @@ services:
 
   # --- Kavita: ebooks and comics ---------------------------------------
   kavita:
-    image: jvmilazz0/kavita:latest
+    image: jvmilazz0/kavita:${KAVITA_VERSION:-0.9.1}
     container_name: ${STACK_PREFIX}kavita
     profiles: ["kavita"]
     restart: unless-stopped

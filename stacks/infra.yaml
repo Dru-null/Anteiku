@@ -18,7 +18,7 @@ services:
   # automatic certificates will not. Free the real ports if you want
   # HTTPS from a public authority.
   nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:latest
+    image: jc21/nginx-proxy-manager:${NGINX_PROXY_MANAGER_VERSION:-2.16.0}
     container_name: ${STACK_PREFIX}nginx-proxy-manager
     profiles: ["nginx-proxy-manager"]
     restart: unless-stopped
@@ -40,7 +40,7 @@ services:
   # start. doctor.sh detects this; infra.md has the fix. It is two
   # commands, but do read why before running them.
   pihole:
-    image: pihole/pihole:latest
+    image: pihole/pihole:${PIHOLE_VERSION:-2026.10.0}
     container_name: ${STACK_PREFIX}pihole
     profiles: ["pihole"]
     restart: unless-stopped
@@ -71,7 +71,7 @@ services:
   #
   # Notifications are off until you configure one - see infra.md.
   diun:
-    image: crazymax/diun:latest
+    image: crazymax/diun:${DIUN_VERSION:-4.33.1}
     container_name: ${STACK_PREFIX}diun
     profiles: ["diun"]
     restart: unless-stopped

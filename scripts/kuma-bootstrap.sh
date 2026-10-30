@@ -24,6 +24,10 @@ for a in "$@"; do case "$a" in
   *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
 esac; done
 
+# Pinned like the stack images. The same Python image as scripts/check.sh.
+PYTHON_IMAGE="python:3.12.16-alpine3.24"
+KUMA_API_VERSION="1.2.1"   # uptime-kuma-api targets Uptime Kuma 1.x
+
 ENV_FILE="${ENV_FILE:-.env}"
 [ -r "$ENV_FILE" ] || { err "No $ENV_FILE — run ./setup.sh first."; exit 1; }
 set -a
@@ -59,8 +63,9 @@ echo "$PLAN" | docker run --rm -i --network "${DOCKER_NETWORK:-anteiku}" \
   -v "$PWD/scripts:/scripts:ro" \
   -e KUMA_URL="http://${STACK_PREFIX}uptime-kuma:3001" \
   -e KUMA_USER="$KUMA_USER" -e KUMA_PASSWORD="$KUMA_PASSWORD" \
-  python:3.12-alpine sh -c \
-    'pip install -q uptime-kuma-api >/dev/null 2>&1; exec python -I /scripts/kuma-apply.py'
+  -e KUMA_API_VERSION="$KUMA_API_VERSION" \
+  "$PYTHON_IMAGE" sh -c \
+    'pip install -q "uptime-kuma-api==$KUMA_API_VERSION" >/dev/null 2>&1; exec python -I /scripts/kuma-apply.py'
 RC=$?
 
 echo

@@ -12,7 +12,7 @@ services:
   # Mounts the docker socket read-only so it can also watch containers
   # that serve no HTTP at all.
   uptime-kuma:
-    image: louislam/uptime-kuma:latest
+    image: louislam/uptime-kuma:${UPTIME_KUMA_VERSION:-1.23.17}
     container_name: ${STACK_PREFIX}uptime-kuma
     profiles: ["uptime-kuma"]
     restart: unless-stopped
@@ -27,7 +27,7 @@ services:
   # No configuration, no database, no setup. Saves you SSH-ing in to run
   # `docker logs` every time something misbehaves.
   dozzle:
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:${DOZZLE_VERSION:-v11.4.0}
     container_name: ${STACK_PREFIX}dozzle
     profiles: ["dozzle"]
     restart: unless-stopped
