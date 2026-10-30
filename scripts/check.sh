@@ -354,6 +354,14 @@ if [ -f "$S/.env" ]; then
     || ! grep -qE 'its data, kept: +.*/appdata/retired-check' "$WORK/yes4.log"; then
     err "re-run did not explain the service that left the catalogue"; grep -A6 'No longer part' "$WORK/yes4.log" | indent
   else ok "re-run named the retired service and its data"; fi
+  # update.sh keeps setup.sh's output in a log and passes this section
+  # on (T-034): it must find it, and only it, even with a section after.
+  { cat "$WORK/yes4.log"; printf '\n── After ──────\n  not this\n'; } > "$WORK/yes4-more.log"
+  got="$(. lib/release.sh; retired_notice "$WORK/yes4-more.log")"
+  if ! grep -qx '  retired-check' <<< "$got" || grep -q 'No longer part of Anteiku\|^\(──\|--\) ' <<< "$got" \
+     || [ "$(tail -n 1 <<< "$got")" != "$(grep -m1 'service that is gone' "$WORK/yes4.log")" ]; then
+    err "lib/release.sh misreads the retired-service section of setup.sh's output"; printf '%s\n' "$got" | indent
+  else ok "update.sh finds the retired-service section ($(wc -l <<< "$got") lines)"; fi
   sum="$(sha256sum < "$S/.env")"
   run_setup dry2 --dry-run --yes; rc=$?
   step "re-run, --dry-run --yes" dry2 "$rc"
