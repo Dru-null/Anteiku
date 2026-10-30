@@ -127,7 +127,9 @@ Nothing updates by itself. Every image is pinned to the version that was
 tested, so an install today and one next month run the same software.
 To move a service on (or back), set its version in `.env` and run
 `docker compose up -d`. Read the release notes and back up first; see
-[`docs/updating.md`](docs/updating.md).
+[`docs/updating.md`](docs/updating.md). Each release of the kit as a
+whole was tested together; [`CHANGELOG.md`](CHANGELOG.md) lists what
+changed and anything you need to do.
 
 ## Getting to it from outside
 
