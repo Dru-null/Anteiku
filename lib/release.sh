@@ -83,3 +83,17 @@ action_needed() {
       }
     }'
 }
+
+# retired_notice <setup.sh log> -> the body of its "No longer part of
+# Anteiku" section (T-020): services that left the catalogue, still
+# there, with the command to remove each. Empty when there is none.
+# setup.sh prints it only on the run that drops them, and update.sh
+# keeps that run's output in a log, so it has to be passed on.
+retired_notice() {
+  awk '
+    /^(──|--) No longer part of Anteiku / { on = 1; next }
+    on && /^(──|--) /                     { exit }
+    on && !NF                             { blank++; next }
+    on { while (blank > 0) { print ""; blank-- } print }
+  ' "$1" 2>/dev/null
+}

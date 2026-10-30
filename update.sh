@@ -87,7 +87,7 @@ check_run() {
 # the release needs you and this run is unattended. Sets OLD, NEW and
 # RESULT (a short summary for a notification).
 UNATTENDED=0
-OLD=""; NEW=""; OLD_REF=""; RESULT=""; BACKUP_AT=""
+OLD=""; NEW=""; OLD_REF=""; RESULT=""; BACKUP_AT=""; SLOG=""; RETIRED=""
 
 rollback_cmds() {
   printf 'cd %q\ngit reset --keep %s\n./setup.sh --yes\ndocker compose up -d\n' "$PWD" "$OLD_REF"
@@ -116,7 +116,7 @@ Nothing was changed."
 }
 
 do_update() {
-  local changes action dirty ans slog
+  local changes action dirty ans
   h1 "Before updating"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || { err "This folder is not a git checkout."; note "update.sh moves it to a release with git. Clone the repo with git to use it."; RESULT="not a git checkout"; return 1; }
@@ -189,14 +189,20 @@ Nothing was changed."
   ok "files now at $NEW"
 
   h1 "3/5  setup.sh"
-  mkdir -p "$LOG_DIR"; slog="$LOG_DIR/setup-$STAMP.log"
+  mkdir -p "$LOG_DIR"; SLOG="$LOG_DIR/setup-$STAMP.log"
   # Keeps every setting, password and override; adds what the release needs.
-  if ! NO_COLOR=1 ./setup.sh --yes > "$slog" 2>&1; then
-    tail -n 15 "$slog" | sed 's/^/    /'
-    stopped "./setup.sh --yes (log: $slog)" moved; return 1
+  if ! NO_COLOR=1 ./setup.sh --yes > "$SLOG" 2>&1; then
+    tail -n 15 "$SLOG" | sed 's/^/    /'
+    stopped "./setup.sh --yes (log: $SLOG)" moved; return 1
   fi
-  ok "config refreshed (log: $slog)"
-  grep -h 'held at a version override' "$slog" | sed 's/^ *//; s/^/    /'
+  ok "config refreshed (log: $SLOG)"
+  grep -h 'held at a version override' "$SLOG" | sed 's/^ *//; s/^/    /'
+  # setup.sh says this only on the run that drops the service: this one.
+  RETIRED="$(retired_notice "$SLOG")"
+  if [ -n "$RETIRED" ]; then
+    h1 "No longer part of Anteiku"
+    printf '%s\n' "$RETIRED"
+  fi
 
   h1 "4/5  Images"
   docker compose pull --quiet || { stopped "docker compose pull" moved; return 1; }
@@ -213,6 +219,7 @@ Nothing was changed."
   note "the way back to ${OLD:-the previous version}:"
   while IFS= read -r l; do printf '       %s%s%s\n' "$C_B$C_INF" "$l" "$C_RST"; done < <(rollback_cmds)
   [ -n "$BACKUP_AT" ] && note "Databases: restore from $BACKUP_AT (docs/backups.md)."
+  [ -n "$RETIRED" ] && warn "Not deleted for you: see \"No longer part of Anteiku\" above."
   RESULT="$(docker compose ps --format '{{.Name}} {{.State}}' 2>/dev/null)"
   return 0
 }
@@ -229,6 +236,17 @@ notify() {   # priority tags title body
       --data-binary "$4" "$NTFY_URL/${NTFY_TOPIC:-homelab}" \
     || { echo "could not send: $3"; return 1; }
   echo "sent: $3"
+}
+
+# Retired services for a notification: names and commands only. The
+# data paths stay in the log: APPDATA may be outside this folder.
+retired_summary() {
+  local keys cmds
+  keys="$(sed -n 's/^  \([a-z0-9][a-z0-9-]*\)$/\1/p' <<< "$RETIRED" | tr '\n' ' ')"
+  cmds="$(sed -n 's/^ *stop and remove: *//p' <<< "$RETIRED")"
+  printf 'No longer part of Anteiku, still there, not deleted: %s\n' "${keys% }"
+  [ -n "$cmds" ] && printf 'To remove:\n%s\n' "$cmds"
+  printf 'Data, if any, is kept. Details: %s\n' "$PWD/${SLOG#./}"
 }
 
 cron_run() {
@@ -259,6 +277,9 @@ cron_run() {
     fi
     UNATTENDED=1; ASSUME_YES=1
     do_update; rc=$?
+    [ -n "$RETIRED" ] && RESULT="$RESULT
+
+$(retired_summary)"
     if [ "$rc" -eq 0 ]; then
       notify default white_check_mark "Anteiku updated to $NEW" "${OLD:-?} -> $NEW
 $RESULT
