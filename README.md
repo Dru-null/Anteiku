@@ -4,6 +4,8 @@
 
 A dynamic homelab installer that builds your starter kit, whatever your hardware.
 
+[![check](https://github.com/Dru-null/Anteiku/actions/workflows/check.yml/badge.svg)](https://github.com/Dru-null/Anteiku/actions/workflows/check.yml)
+
 Named after a café where anyone could find a seat and a place to start.
 
 > [!IMPORTANT]
