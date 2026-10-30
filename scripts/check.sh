@@ -342,6 +342,18 @@ if [ -f "$S/.env" ]; then
   elif secrets | grep -qvxFf - "$WORK/secrets1"; then
     err "re-run changed an existing secret"
   else ok "re-run kept the existing secrets ($(wc -l < "$WORK/secrets1"))"; fi
+  # A service that left the catalogue (Diun, T-020): a re-run drops the
+  # profile and must say so, with its data dir, not go silent.
+  sed -i "s/^COMPOSE_PROFILES=\(.*\)/COMPOSE_PROFILES=\1,retired-check/" "$S/.env"
+  mkdir -p "$S/appdata/retired-check"
+  run_setup yes4 --yes; rc=$?
+  step "re-run, a profile no longer in the catalogue" yes4 "$rc"
+  if grep -q 'retired-check' <<< "$(sed -n 's/^COMPOSE_PROFILES=//p' "$S/.env")"; then err "re-run kept a profile that is not in the catalogue"
+  elif ! grep -q 'No longer part of Anteiku' "$WORK/yes4.log" \
+    || ! grep -qE 'retired-check \(no longer part of Anteiku' "$WORK/yes4.log" \
+    || ! grep -qE 'its data, kept: +.*/appdata/retired-check' "$WORK/yes4.log"; then
+    err "re-run did not explain the service that left the catalogue"; grep -A6 'No longer part' "$WORK/yes4.log" | indent
+  else ok "re-run named the retired service and its data"; fi
   sum="$(sha256sum < "$S/.env")"
   run_setup dry2 --dry-run --yes; rc=$?
   step "re-run, --dry-run --yes" dry2 "$rc"
