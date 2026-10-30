@@ -9,6 +9,8 @@ set -uo pipefail
 cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/detect.sh
 . lib/detect.sh
+# shellcheck source=lib/release.sh
+. lib/release.sh
 
 banner "anteiku $S_DOT doctor" "read-only: what you have, what works, what will bite"
 
@@ -191,6 +193,35 @@ elif [ "$DET_TS_UP" -eq 1 ]; then
 else
   warn "Tailscale is installed but not connected."
   note "Bring it up with:  sudo tailscale up"
+fi
+
+# --------------------------------------------------------------- updates
+# Only for an install, and only if you didn't turn checks off. Asks
+# GitHub for the newest release; sends nothing (lib/release.sh).
+h1 "Updates"
+if [ ! -r .env ]; then
+  ok "Nothing installed yet. setup.sh asks how you want updates handled."
+else
+  UPD_MODE="$(sed -n 's/^UPDATE_MODE=//p' .env | tail -n 1)"
+  REL_NOW="$(release_current)"
+  kv "This install" "${REL_NOW:-unknown}"
+  kv "UPDATE_MODE" "${UPD_MODE:-notify (not set)}"
+  if [ -n "$REL_NOW" ] && [ "$(head -n 1 update-logs/failed 2>/dev/null)" = "$REL_NOW" ]; then
+    warn "The update to $REL_NOW stopped halfway. The way back, in this folder:"
+    tail -n +3 update-logs/failed | while IFS= read -r l; do note "  $l"; done
+  elif [ "$UPD_MODE" = off ]; then
+    ok "Update checks are off. ./update.sh --check asks by hand."
+  elif ! release_latest; then
+    note "Could not ask GitHub for the newest release (offline?)."
+  elif [ -n "$REL_NOW" ] && ! version_gt "$REL_TAG" "$REL_NOW"; then
+    ok "Up to date: $REL_NOW is the newest tested release."
+  else
+    warn "Anteiku $REL_TAG is available. See: ./update.sh --check"
+  fi
+  if [ "$UPD_MODE" != off ] && ! { have crontab && crontab -l 2>/dev/null \
+       | awk -v t="# anteiku-update $PWD" 'substr($0, length($0) - length(t) + 1) == t {f=1} END {exit !f}'; }; then
+    note "No weekly check scheduled. To add one:  ./update.sh --schedule"
+  fi
 fi
 
 # --------------------------------------------------------------- summary
