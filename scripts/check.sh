@@ -10,8 +10,8 @@
 #  Starts no containers and writes nothing here: setup.sh runs in a
 #  temporary copy, with its own prefix and project name.
 #
-#  Needs bash, git and Docker. shellcheck and python3 are used from the
-#  host when installed, otherwise from a container.
+#  Needs bash, git and Docker. shellcheck always runs from its pinned
+#  image; python3 from the host when installed, else from a container.
 #
 #  LEAK_PATTERNS_FILE=<file>  extra patterns to keep out of the repo (your
 #  name, your LAN), one extended regex per line. Keep that file outside
@@ -87,14 +87,18 @@ n=0
 for f in "${SH[@]}"; do bash -n "$f" || { err "bash -n: $f"; n=$((n+1)); }; done
 [ "$n" -eq 0 ] && ok "bash -n: ${#SH[@]} scripts"
 
-if have shellcheck; then
-  out="$(shellcheck -x "${SH[@]}" 2>&1)"; rc=$?; how="shellcheck $(shellcheck --version | awk '/^version/{print $2}')"
+# Always the pinned image, never a host binary: each shellcheck release
+# adds rules, so a host copy (CI's runner has its own) would make local
+# and CI results differ.
+if ! docker image inspect "$SHELLCHECK_IMAGE" >/dev/null 2>&1 \
+   && ! docker pull -q "$SHELLCHECK_IMAGE" >/dev/null; then
+  err "shellcheck: could not pull $SHELLCHECK_IMAGE"
 else
-  docker image inspect "$SHELLCHECK_IMAGE" >/dev/null 2>&1 || docker pull -q "$SHELLCHECK_IMAGE" >/dev/null
-  out="$(docker run --rm -v "$ROOT:/mnt:ro" -w /mnt "$SHELLCHECK_IMAGE" -x "${SH[@]}" 2>&1)"; rc=$?; how="$SHELLCHECK_IMAGE"
+  how="shellcheck $(docker run --rm "$SHELLCHECK_IMAGE" --version | awk '/^version/{print $2}')"
+  out="$(docker run --rm -v "$ROOT:/mnt:ro" -w /mnt "$SHELLCHECK_IMAGE" -x "${SH[@]}" 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ]; then ok "shellcheck: clean ($how)"
+  else err "shellcheck: findings ($how)"; printf '%s\n' "$out" | indent; fi
 fi
-if [ "$rc" -eq 0 ]; then ok "shellcheck: clean ($how)"
-else err "shellcheck: findings ($how)"; printf '%s\n' "$out" | indent; fi
 
 # ------------------------------------------------------------ parse
 h1 "Parse"
