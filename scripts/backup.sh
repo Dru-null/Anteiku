@@ -2,9 +2,9 @@
 # ============================================================
 #  backup.sh — back up the things that hurt to lose.
 #
-#  Philosophy: your media library is large and re-obtainable. Your
-#  CONFIGS, SECRETS and anything irreplaceable (photos, documents) are
-#  small and gone forever. This backs up the second kind.
+#  Configs, secrets and database dumps: small, and weeks of work to
+#  redo. NOT media (large, re-obtainable) and NOT your photo files
+#  (large, irreplaceable: copy them yourself, see docs/backups.md).
 #
 #    ./scripts/backup.sh --dry-run     show the plan, write nothing
 #    ./scripts/backup.sh               run it
@@ -112,6 +112,11 @@ done
 echo "  database dumps: $DUMPS"
 echo "  also:           .env, compose files, your stack definition"
 echo "  NOT backed up:  ${MEDIA_ROOT} (large and re-obtainable)"
+case " $SERVICES " in *" immich "*)
+  echo "  NOT backed up:  ${PHOTOS_LOCATION:-./photos} (your photo files)"
+  note "Immich's database is dumped; the photos it points at are not."
+  note "Copy them yourself after this: docs/backups.md, \"Your photos\"." ;;
+esac
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo

@@ -741,7 +741,8 @@ if _sel_has immich; then
   PHOTOS_DEF="$(abspath "$PHOTOS_DEF")"
   kv "Photo library" "$PHOTOS_DEF"
   note "Kept separate from your media library on purpose: photos are"
-  note "irreplaceable, films are not. Back this one up."
+  note "irreplaceable, films are not. Back this one up: backup.sh doesn't"
+  note "copy it (docs/backups.md, \"Your photos\")."
 
   P_FREE="$(free_gb "$PHOTOS_DEF" 2>/dev/null || echo 0)"
   if [ "${P_FREE:-0}" -lt 20 ]; then

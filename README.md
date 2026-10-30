@@ -98,7 +98,7 @@ Still stuck, or found something wrong: [open an issue](https://github.com/dru-nu
 ## Notes
 
 - **Never forward ports** on your router. Remote access goes through a mesh VPN.
-- **Back up before** you put anything you care about on here. `scripts/backup.sh` covers configs, secrets and databases, not media.
+- **Back up before** you put anything you care about on here. `scripts/backup.sh` covers configs, secrets and databases, not media or your photo files.
 - **Nothing updates by itself.** Every image is pinned to the version that was tested; [`CHANGELOG.md`](CHANGELOG.md) says what each release changed.
 - **One filesystem:** downloads and library share one `MEDIA_ROOT`, so imports are hardlinks, not copies. Split them and the disk fills twice as fast.
 - **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU. NVIDIA, AMD, ARM64 and rootless Docker are written from upstream docs and not yet tested; the scripts say so when you're on one of those paths.

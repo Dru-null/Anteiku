@@ -16,14 +16,17 @@ Not everything. The split that matters:
 |---|---|---|
 | **Configs** (`appdata/`) | small — MBs | Weeks of setup. Every indexer, library, user, tweak |
 | **Secrets** (`.env`) | tiny | Every password and API key |
-| **Irreplaceable data** (photos, documents) | large | **Gone forever** |
+| **Your own files** (photos, documents) | large | **Gone forever** |
 | Media library | huge | Annoying. Re-obtainable |
 
-So: back up configs, secrets and irreplaceable data. Do **not** back up
+So: back up configs, secrets and your own files. Do **not** back up
 your media library — it is enormous and you can get it again. Backing
 it up is how people conclude backups are impractical and then do none.
 
-`scripts/backup.sh` follows exactly this split.
+`scripts/backup.sh` covers the first two rows, plus a dump of every
+database. It does **not** copy your photo files (`PHOTOS_LOCATION`):
+they are large, and a fresh 200 GB archive each run fills any disk.
+Copy them yourself, with one command; see [Your photos](#your-photos).
 
 ---
 
@@ -45,6 +48,40 @@ What it produces, in a dated directory:
 | `<service>-db.sql.gz` | a proper dump per database |
 
 It exits non-zero if anything failed, so cron can act on it.
+
+---
+
+## Your photos
+
+`backup.sh` dumps Immich's database: albums, people, shares, who
+uploaded what. The photos and videos live in `PHOTOS_LOCATION`, and
+they are not in that backup. You need both. The database without the
+files is a timeline of broken images; the files without the database
+lose every album and person.
+
+Copy the folder with `rsync`, after `backup.sh` (database first, then
+files, so the copy holds every file the dump knows about). After the
+first run it only copies what is new:
+
+```bash
+rsync -a /path/to/PHOTOS_LOCATION/ /mnt/backup/photos/
+```
+
+- The trailing `/` on the source matters. Without it you get
+  `photos/photos/`.
+- No `--delete`, on purpose: a photo deleted on the server stays in the
+  copy, so a mistake is not mirrored. Tidy the copy by hand now and then.
+- Short on space? `--exclude=thumbs --exclude=encoded-video` skips what
+  Immich can regenerate. After a restore, run the thumbnail and
+  transcode jobs again (Administration → Jobs).
+- To schedule it, add a line under `backup-cron.sh` in your crontab,
+  an hour later. It does not notify you; look at the copy now and then.
+  ```
+  0 4 * * 0 rsync -a /path/to/PHOTOS_LOCATION/ /mnt/backup/photos/
+  ```
+
+Ubuntu's standard install includes `rsync`; elsewhere, install it from
+your package manager.
 
 ---
 
@@ -151,7 +188,9 @@ Rebuilding from nothing:
 tar xzf /mnt/backup/2026-10-28/stack.tar.gz -C anteiku
 # 3. restore configs
 tar xzf /mnt/backup/2026-10-28/appdata-configs.tar.gz -C anteiku/appdata
-# 4. restore databases (below), then bring everything up
+# 4. put the photo files back (from your own copy, see "Your photos")
+rsync -a /mnt/backup/photos/ /path/to/PHOTOS_LOCATION/
+# 5. restore databases (below), then bring everything up
 cd anteiku && docker compose up -d
 ```
 
@@ -178,8 +217,10 @@ docker compose start immich-server
 
 You do **not** need the original database password to restore — the
 dump is plain SQL. What you *do* need is the photo files under
-`PHOTOS_LOCATION` back in place as well: the database knows about each
-photo, but the photos themselves live on disk.
+`PHOTOS_LOCATION` back in place first: the database knows about each
+photo, but the photos themselves live on disk, and `backup.sh` does not
+copy them. Restore them from your own copy ([Your photos](#your-photos))
+before step 4.
 
 ---
 
