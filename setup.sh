@@ -195,10 +195,14 @@ svc_tag() {
 COLS="$( (tput cols) 2>/dev/null || echo 100)"; [ "${COLS:-0}" -gt 20 ] 2>/dev/null || COLS=100
 DESC_W=$(( COLS - 50 )); [ "$DESC_W" -lt 20 ] && DESC_W=20; [ "$DESC_W" -gt 56 ] && DESC_W=56
 MENU_MSG=""
+# Fresh installs start with a starter set ticked. Say so, or the ticks
+# read as "already installed".
+FRESH_HINT="A starter set is ticked for you. Untick anything you don't want."
 
 render_menu() {
   local st i box name desc tag numc namec descc n_sel=0 n_new=0
   h1 "Choose what to install"
+  [ "$RERUN" -eq 0 ] && printf '  %s\n' "$FRESH_HINT"
   printf '  %sShips NO indexers and no sources %s Prowlarr starts empty.%s\n' "$C_GREY" "$S_DOT" "$C_RST"
   for st in $STACK_ORDER; do
     printf '\n  %s%s%s %s%s %s%s\n' "$C_B" "$st" "$C_RST" "$C_GREY" "$S_DOT" "$(stack_label "$st")" "$C_RST"
@@ -318,7 +322,7 @@ _tui_key() {   # sets KEY
 _tui_draw() {
   local rows cols body total=0 line pos i st desc dw tag box namec descc ptr n_sel=0 n_new=0
   read -r rows cols < <(stty size 2>/dev/null) || { rows=24; cols=80; }
-  body=$(( rows - 7 ))
+  body=$(( rows - 7 - (1 - RERUN) ))   # fresh installs: one more line for the hint
   dw=$(( cols - 50 )); [ "$dw" -lt 16 ] && dw=16; [ "$dw" -gt 60 ] && dw=60
 
   # Build every line of the list, remembering where each item sits.
@@ -373,6 +377,7 @@ _tui_draw() {
   counts="${C_OK}${n_sel} selected${C_RST}"
   [ "$RERUN" -eq 1 ] && counts="$counts ${C_GREY}${S_DOT}${C_RST} ${C_ACC}${n_new} new${C_RST} ${C_GREY}${S_DOT} ${N_INST} installed${C_RST}"
   F+="  ${C_B}${C_INF}anteiku${C_RST} ${C_GREY}${S_DOT}${C_RST} ${C_B}choose what to install${C_RST}    ${counts}"$'\033[K\n'
+  [ "$RERUN" -eq 0 ] && F+="  ${FRESH_HINT}"$'\033[K\n'
   F+="  ${C_GREY}Ships NO indexers and no sources ${S_DOT} Prowlarr starts empty.${C_RST}"$'\033[K\n\033[K\n'
   for (( i=TOP; i<TOP+body; i++ )); do
     [ "$i" -lt "$total" ] && F+="${DL[$i]}"
