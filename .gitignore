@@ -13,8 +13,9 @@ testdata/
 # Generated per-machine by setup.sh.
 ports.md
 
-# Local backup logs.
+# Local backup and update logs; update.sh state.
 backup-logs/
+update-logs/
 
 # Python bytecode.
 __pycache__/
