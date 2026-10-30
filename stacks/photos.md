@@ -196,5 +196,6 @@ still starting and retry. That is a startup race, it resolves itself,
 and it is not a fault.
 
 **Immich moves fast.** Releases are frequent and occasionally include
-breaking changes. Read the release notes before jumping versions —
-this is exactly what Diun notifications are for.
+breaking changes. Read the release notes before jumping versions.
+Anteiku releases move Immich only after testing it with everything
+else, and `./update.sh --check` shows what a release needs from you.
