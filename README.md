@@ -82,6 +82,8 @@ If it already runs Linux with Docker, skip to [Running it yourself](#running-it-
 
 To add services later, run `./setup.sh` again. `--reconfigure` changes what's already installed, after asking.
 
+To move to a newer release: `./update.sh`. It backs up first and shows what changed before it touches anything.
+
 ## When you're stuck
 
 Everything here has a guide. Read the one for what you're doing before changing anything:
@@ -91,7 +93,7 @@ Everything here has a guide. Read the one for what you're doing before changing 
 | [`stacks/*.md`](stacks/) | each service: what it's for, setup order, and the traps that catch people |
 | [`docs/remote-access.md`](docs/remote-access.md) | reaching your services from outside, safely |
 | [`docs/backups.md`](docs/backups.md) | what's backed up, scheduling, testing a restore |
-| [`docs/updating.md`](docs/updating.md) | moving a service to a new version, and back |
+| [`docs/updating.md`](docs/updating.md) | new releases, `update.sh`, moving one service to a new version, and back |
 
 If a guide doesn't make sense, ask. An AI assistant is good at explaining a term, an error or a log line; paste the error and the part of the guide you're on. `doctor.sh` and `setup.sh` output is safe to share. Never paste your `.env`: it holds your passwords.
 
@@ -101,7 +103,8 @@ Still stuck, or found something wrong: [open an issue](https://github.com/dru-nu
 
 - **Never forward ports** on your router. Remote access goes through a mesh VPN.
 - **Back up before** you put anything you care about on here. `scripts/backup.sh` covers configs, secrets and databases, not media or your photo files.
-- **Nothing updates by itself.** Every image is pinned to the version that was tested; [`CHANGELOG.md`](CHANGELOG.md) says what each release changed.
+- **Nothing updates unless you choose automatic updates.** Every image is pinned to the version that was tested; [`CHANGELOG.md`](CHANGELOG.md) says what each release changed. `setup.sh` asks whether to tell you about new releases (the default), install them by themselves, or neither.
+- **The update check sends nothing.** Once a week it asks GitHub for the newest release and reads its changelog. No IDs, no statistics, and nothing at all with updates off.
 - **One filesystem:** downloads and library share one `MEDIA_ROOT`, so imports are hardlinks, not copies. Split them and the disk fills twice as fast.
 - **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU. NVIDIA, AMD, ARM64 and rootless Docker are written from upstream docs and not yet tested; the scripts say so when you're on one of those paths.
 

@@ -1,7 +1,14 @@
 # Updating
 
 Every image in this kit is pinned to an exact version. Nothing updates
-unless you change a version and run `docker compose up -d`.
+unless you run `./update.sh`, change a version yourself, or chose
+automatic updates in `setup.sh`.
+
+A **release** is a set of versions that was brought up and tested
+together, every service at once, on real hardware, before it was
+published. `update.sh` only ever moves you from one release to the
+next, never to whatever is newest on `main`. [`CHANGELOG.md`](../CHANGELOG.md)
+lists them; each starts with **Action needed**.
 
 ---
 
@@ -90,20 +97,65 @@ Delete the line from `.env`, then `docker compose up -d`.
    [`backups.md`](backups.md), "Test the restore. Really.".
 3. `docker compose up -d <service>`
 
-## Update the whole kit
-
-When this repo moves to newer pins, the ones tested together:
+## New releases: `update.sh`
 
 ```bash
-./scripts/backup.sh
-git pull
-./setup.sh                          # keeps your settings, passwords and overrides
-docker compose pull
-docker compose up -d
+./update.sh --check      # is there a newer release? changes nothing
+./update.sh              # back up, update, restart; asks first
 ```
 
-Overrides in `.env` still win over the new pins. Remove the ones you no
-longer need.
+What `./update.sh` does, in order, stopping at the first problem:
+
+1. Refuses if you edited files that came with the repo, and names them.
+   Keep them aside with `git stash`, update, then `git stash pop`. To
+   run another version of a service, use an override in `.env`
+   (above), which git never touches.
+2. Shows the changelog from your release to the new one, **Action
+   needed** first, and asks.
+3. Runs `./scripts/backup.sh`. No `BACKUP_DEST` in `.env`, no update
+   (`--no-backup` skips it, deliberately).
+4. Moves the files to the new release (`git fetch`, then a fast-forward
+   to its tag; never a merge).
+5. Re-runs `./setup.sh --yes`: your settings, passwords and overrides
+   are kept. Overrides still win over the new pins; it reminds you
+   which are active.
+6. `docker compose pull`, `docker compose up -d`, and shows the result.
+
+If a step fails after the files moved, it prints the exact commands to
+go back, starting with `git reset --keep <where you were>`. Those don't
+roll a database back: an app that already converted its database needs
+the backup from step 3 ([`backups.md`](backups.md)).
+
+## Being told, or updating by itself
+
+`setup.sh` asks once and writes the answer to `.env`. Change it there
+any time, or with `./setup.sh --reconfigure`.
+
+| `UPDATE_MODE` | What the weekly check does |
+|---|---|
+| `notify` (default) | One message per new release: version, Action needed, changelog link. You run `./update.sh` |
+| `auto` | Runs `update.sh` by itself, backup included, then tells you how it went. Never a release with Action needed (you get a message instead), never one less than 3 days old |
+| `off` | Nothing. `./update.sh --check` still works by hand |
+
+The weekly check is one line in your crontab, Sundays at 04:30:
+
+```bash
+./update.sh --schedule      # add it (safe to run again)
+./update.sh --unschedule    # remove it
+```
+
+Messages go to your ntfy if it is installed (the `NTFY_*` lines in
+`.env`). Without ntfy, `./doctor.sh` shows when a release is out. Logs:
+`update-logs/`.
+
+**What it contacts:** GitHub's Releases API and the release's
+`CHANGELOG.md`, once a week. Nothing about you or your install is sent.
+With `off`, nothing at all.
+
+**Auto mode, honestly.** A release is tested, but on one machine, not
+yours. The 3-day wait is there so a broken release can be replaced
+before it reaches you. If your server holds anything you would hate to
+lose for a weekend, `notify` is the calmer choice.
 
 ---
 
