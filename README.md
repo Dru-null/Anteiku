@@ -85,7 +85,7 @@ Early. What is tested, and how:
 
 | Stack | Services | Verified |
 |---|---|---|
-| `arr` | Prowlarr, Byparr, qBittorrent, Sonarr, Radarr, Lidarr, LazyLibrarian, Bazarr, Seerr | root folders, download client, Prowlarr sync, hardlink import |
+| `arr` | Prowlarr, qBittorrent, Sonarr, Radarr, Lidarr, LazyLibrarian, Bazarr, Seerr | root folders, download client, Prowlarr sync, hardlink import |
 | `media` | Jellyfin, Navidrome, Kavita | Intel Quick Sync hardware encode, accounts created |
 | `infra` | Nginx Proxy Manager, Pi-hole, Diun | hostname → Pi-hole → NPM → correct container |
 | `monitoring` | Uptime Kuma, Dozzle | a monitor auto-created per service, all reporting up |
@@ -93,7 +93,7 @@ Early. What is tested, and how:
 | `extras` | ntfy, Vaultwarden | backup alerts delivered; signups closed on re-run |
 | `books` | Calibre-Web-Automated | epub ingested into the library, served over OPDS |
 
-All 24 containers were brought up **together** from a fresh copy of this
+All 23 containers were brought up **together** from a fresh copy of this
 repo, with `setup.sh` run as a new user would, on x86_64 / Ubuntu 26.04
 with an Intel iGPU and an NVIDIA dGPU — then re-run three more times to
 confirm a re-run changes nothing.

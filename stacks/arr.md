@@ -21,7 +21,6 @@ watches for it, files it correctly and keeps it tidy.
 | `sonarr` | 8989 | TV | on |
 | `radarr` | 7878 | Movies | on |
 | `seerr` | 5055 | Request UI for the household | on |
-| `byparr` | 8191 | CAPTCHA solver some indexers need | off |
 | `lidarr` | 8686 | Music | off |
 | `lazylibrarian` | 5299 | Books and audiobooks | off |
 | `bazarr` | 6767 | Subtitles | off |
@@ -112,12 +111,6 @@ That last one is worth running early. Catching a broken path contract on
 file three is much better than on file three thousand.
 
 ## Traps
-
-**byparr and zombie processes.** `init: true` in the compose file is not
-decorative. Each CAPTCHA solve leaves chromium children behind; with no
-init process to reap them they pile up as zombies until the host cannot
-fork at all. It is invisible in CPU, memory and healthchecks — look at the
-PID column. Keep `init: true`.
 
 **Check file type, not extension.** Anything that arrives from the internet
 can be something other than what it claims. A padded `.exe` renamed to look

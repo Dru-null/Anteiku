@@ -85,7 +85,6 @@ detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker
 # ============================================================
 CATALOGUE="
 prowlarr|arr|on|9696|9696|Indexer manager: the hub the *arrs ask
-byparr|arr|off|8191|8191|CAPTCHA solver some indexers need behind Prowlarr
 qbittorrent|arr|on|8181|8080|Download client
 sonarr|arr|on|8989|8989|TV library management
 radarr|arr|on|7878|7878|Movie library management

@@ -138,7 +138,7 @@ note "stream to several devices at once, or remotely over limited upload."
 
 # ----------------------------------------------------------------- ports
 h1 "Port availability"
-PORTS="9696:Prowlarr 8191:Byparr 8181:qBittorrent 8989:Sonarr 7878:Radarr 8686:Lidarr 5299:LazyLibrarian 6767:Bazarr 5055:Seerr"
+PORTS="9696:Prowlarr 8181:qBittorrent 8989:Sonarr 7878:Radarr 8686:Lidarr 5299:LazyLibrarian 6767:Bazarr 5055:Seerr"
 CLASH=0
 for entry in $PORTS; do
   p="${entry%%:*}"; name="${entry##*:}"

@@ -29,7 +29,6 @@ lidarr|Acquisition|http|lidarr:8686|/|
 lazylibrarian|Acquisition|http|lazylibrarian:5299|/|
 bazarr|Acquisition|http|bazarr:6767|/|
 qbittorrent|Acquisition|http|qbittorrent:8080|/|401
-byparr|Acquisition|http|byparr:8191|/|
 dozzle|Infra|http|dozzle:8080|/|
 ntfy|Infra|http|ntfy:80|/v1/health|
 diun|Containers|docker|diun||

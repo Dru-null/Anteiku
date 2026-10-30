@@ -41,25 +41,6 @@ services:
     volumes:
       - ${APPDATA}/prowlarr:/config
 
-  # --- CAPTCHA solver -------------------------------------------------
-  # Optional. Prowlarr points at http://byparr:8191 if you use it.
-  #
-  # init: true is NOT optional. Each solve leaves chromium children
-  # behind; without an init process to reap them they accumulate as
-  # zombies until the host PID table is exhausted. They are invisible in
-  # CPU, memory and healthchecks — the only symptom is the whole host
-  # failing to fork. Check the PID column, not the CPU column.
-  byparr:
-    image: ghcr.io/thephaseless/byparr:latest
-    container_name: ${STACK_PREFIX}byparr
-    profiles: ["byparr"]
-    restart: unless-stopped
-    init: true
-    ports: ["${PORT_BYPARR:-8191}:8191"]
-    environment:
-      LOG_LEVEL: info
-      TZ: ${TZ}
-
   # --- Download client ------------------------------------------------
   # UMASK=002 gives group write on finished files so the *arrs can
   # hardlink and move them. Keep it.
