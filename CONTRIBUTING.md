@@ -24,9 +24,11 @@ rules first; a change that breaks one won't be merged however good it is.
 ./scripts/check.sh --tui; echo "exit $?"
 ```
 
-It must print `All checks passed.` and exit 0. It lints, parses, checks
+It must print `All checks passed.` and exit 0. It lints (shellcheck from
+its pinned image, the same version as CI, never a host copy), parses, checks
 every compose combination, runs `setup.sh` in a temporary copy, drives the
-picker, and scans for secrets and image metadata. It starts no containers.
+picker, and scans for secrets and image metadata. It starts none of the
+stack's containers.
 
 Add your own leak patterns (your name, your LAN) with
 `LEAK_PATTERNS_FILE=~/my-patterns.txt`, one regex per line, kept outside
