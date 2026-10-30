@@ -1,179 +1,124 @@
+[![Anteiku](assets/anteiku-preview.png)](assets/anteiku-preview.png)
+
 # Anteiku
 
-A self-hosted starter kit for people who have never run one — a working
-Docker stack you can boot, with the reasoning written down next to it,
-and a setup script that reads your machine and adapts to it.
+A dynamic homelab installer that builds your starter kit, whatever your hardware.
 
-Built from a real single-machine homelab, with the mistakes left in on
-purpose. Most guides show you the happy path. The failures are the
-useful part.
+Named after a café where anyone could find a seat and a place to start.
 
-```bash
-git clone <repo-url> anteiku && cd anteiku
-./doctor.sh      # read-only. what you have, what will work, what will bite
-./setup.sh       # pick your services, write your config
-docker compose up -d
-```
+> [!IMPORTANT]
+> **No indexers, no trackers, no sources.** Anteiku installs the software and
+> nothing to put in it. Prowlarr starts empty and stays that way until you set
+> it up yourself. What goes in is your call and your responsibility.
+> Rip the discs you own, buy DRM-free, use the public domain.
 
----
+## What it does
 
-## Scope — what this is NOT
+- **Reads your machine first.** `doctor.sh` surveys CPU, RAM, GPU, ports and disks, and writes nothing.
+- **Lets you pick.** 21 services in a full-screen list, a small starter set ticked. Taken ports shift to the next free one; `ports.md` records what each service got.
+- **Fits the hardware.** An Intel, NVIDIA or AMD GPU is wired into Jellyfin for transcoding; without one, it runs on the CPU.
+- **Re-runs safely.** Installed services are locked, so a re-run only adds. Passwords, ports and paths stay as they were.
+- **Watches and backs up.** Uptime monitors are generated from what you installed. Backups cover configs, secrets and databases.
 
-**This project does not provide, bundle, recommend or link to any indexers,
-trackers, sources or content of any kind.** None. Prowlarr installs empty
-and stays empty until you configure it yourself.
+Nothing starts by itself. `setup.sh` writes the config and stops; you read it, then run compose.
 
-This is infrastructure: it manages, organises, transcodes and serves a
-library that **you supply**. What you put in it is your decision and your
-responsibility alone, under the laws that apply to you. That is nothing to
-do with this project and we will not help with it.
+![The service picker](assets/picker.svg)
 
-There are plenty of legitimate ways to fill a library, and they are what
-this kit is built for:
+## Start with a machine
 
-- **Rip discs you already own** — DVDs, Blu-rays, CDs on your shelf
-- **DRM-free stores** — Bandcamp, Humble, GOG, Blu-ray with digital copies
-- **Public domain and open archives** — Internet Archive, Project Gutenberg,
-  Librivox, open-access film restorations
-- **Your own files** — photos, home video, music you recorded, documents
-- **Creative Commons and freely licensed media**
+An old laptop, a mini-PC or a spare desktop. 4 GiB of RAM works, 8 is comfortable.
+If it already runs Linux with Docker, skip to [Running it yourself](#running-it-yourself).
 
-Home recording and disc-ripping rules differ by country. Check yours.
+<details>
+<summary>Installing Ubuntu Server, step by step</summary>
 
-## What it gives you
+1. Download **Ubuntu Server 26.04 LTS** from [ubuntu.com/download/server](https://ubuntu.com/download/server).
+2. Write it to a USB stick of 4 GB or more with [balenaEtcher](https://etcher.balena.io/) (or Rufus on Windows). The stick is erased.
+3. Plug it in and power on. Open the boot menu with the key your machine's maker uses, usually Esc, F2, F10 or F12, and pick the USB stick.
+4. In the installer:
+   - **Language, keyboard:** yours.
+   - **Network:** leave it on DHCP.
+   - **Storage:** "Use an entire disk" erases that disk. Choose it only if nothing on it matters. Leave a second disk for media alone; mount it later.
+   - **Profile:** your name, a server name, a username and a password.
+   - **SSH configuration:** tick **Install OpenSSH server**. It is off by default, and it's how you'll reach the machine from another computer.
+   - **Featured server snaps:** tick nothing. Docker comes next, from Docker itself.
+5. Remove the stick when asked, reboot, log in. Then update:
+   ```bash
+   sudo apt update && sudo apt full-upgrade
+   ```
+6. Install Docker Engine and the Compose plugin from [Docker's apt repository](https://docs.docker.com/engine/install/ubuntu/). Not the `docker` snap, which only sees your home folder, and not Ubuntu's `docker.io`.
+7. Let your user run Docker, then log out and back in:
+   ```bash
+   sudo usermod -aG docker $USER
+   ```
+   Membership of the `docker` group is [root-level access](https://docs.docker.com/engine/install/linux-postinstall/). Keep it to your own user.
+8. Give the machine a fixed address: in your router, add a DHCP reservation for it. `hostname -I` shows its current one.
 
-| | |
+</details>
+
+## Running it yourself
+
+1. Clone it:
+   ```bash
+   git clone https://github.com/dru-null/Anteiku.git anteiku && cd anteiku
+   ```
+2. See what you have. Read-only, and safe to paste into an issue:
+   ```bash
+   ./doctor.sh
+   ```
+3. Pick your services and write the config. `--dry-run` shows every decision and writes nothing:
+   ```bash
+   ./setup.sh
+   ```
+   `↑` `↓` to move, `space` to tick, `a` / `n` for all or none, `enter` to continue, `q` to quit.
+4. Start them:
+   ```bash
+   docker compose up -d
+   ```
+5. Open `ports.md` for the address of each service.
+6. Follow the guide for each stack in `stacks/`: [arr](stacks/arr.md), [media](stacks/media.md), [infra](stacks/infra.md), [monitoring](stacks/monitoring.md), [photos](stacks/photos.md), [extras](stacks/extras.md), [books](stacks/books.md). Each has a setup order and a Traps section.
+
+To add services later, run `./setup.sh` again. `--reconfigure` changes what's already installed, after asking.
+
+## When you're stuck
+
+Everything here has a guide. Read the one for what you're doing before changing anything:
+
+| Guide | Covers |
 |---|---|
-| `doctor.sh` | Read-only survey: CPU, RAM, GPU, render nodes, Docker, ports, disk. Writes nothing. Prints no secrets, so it's safe to paste into an issue. |
-| `setup.sh` | Interactive checklist. Detects clashes, shifts ports, writes `.env`. `--dry-run` shows every decision and writes nothing. |
-| `stacks/*.yaml` | The services, templated. Every value is a `${VAR}`; every image is pinned to an exact version. |
-| `scripts/backup.sh` | Backs up configs, secrets and databases — not your media. Warns if the destination is the same disk. |
-| `docs/backups.md` | **Read before you put anything you care about on here.** |
-| `scripts/ntfy-setup.sh` | Creates the ntfy user and topic so backups and uptime alerts reach your phone. |
-| `scripts/kuma-bootstrap.sh` | Creates an uptime monitor for every service you installed, grouped sensibly. Re-runnable. |
-| `stacks/*.md` | One guide per stack: what each service is for, setup order, the traps. |
-| `docs/remote-access.md` | Getting in from outside without exposing anything. Read before forwarding any port. |
-| `docs/updating.md` | Why versions are pinned, how to update one service, how to roll back. |
-| `ports.md` | **Generated.** Every service you installed, the port it actually got, and the name other containers reach it by. Rewritten each `setup.sh` run. |
+| [`stacks/*.md`](stacks/) | each service: what it's for, setup order, and the traps that catch people |
+| [`docs/remote-access.md`](docs/remote-access.md) | reaching your services from outside, safely |
+| [`docs/backups.md`](docs/backups.md) | what's backed up, scheduling, testing a restore |
+| [`docs/updating.md`](docs/updating.md) | moving a service to a new version, and back |
 
-Nothing is started for you. `setup.sh` writes config and stops; you read it,
-then run compose yourself.
+If a guide doesn't make sense, ask. An AI assistant is good at explaining a term, an error or a log line; paste the error and the part of the guide you're on. `doctor.sh` and `setup.sh` output is safe to share. Never paste your `.env`: it holds your passwords.
 
-**Picking services** is a full-screen list: `↑` `↓` to move, `space` to
-tick, `a` / `n` for all or none, `enter` to continue, `q` to quit without
-writing anything. It explains whatever is highlighted at the bottom of the
-screen. On a terminal that cannot draw a full screen — or with
-`./setup.sh --plain` — you get a numbered menu instead.
+Still stuck, or found something wrong: [open an issue](https://github.com/dru-null/Anteiku/issues) with your `doctor.sh` output.
 
-**Adding services later is safe.** Re-run `./setup.sh`: anything already
-installed is shown as locked and cannot be unticked by accident, so you
-can only add. Its ports, paths and passwords are kept exactly as they
-are, and `docker compose up -d` starts just the new ones. To change or
-remove something you already run, `./setup.sh --reconfigure` unlocks
-it — after spelling out what can break and asking you to type
-`reconfigure`. It never deletes a container or its data; it prints the
-exact command for you to run.
+## Notes
 
-**If a port you need is already taken**, setup.sh walks upward one port at a
-time until it finds a free one — 5055 busy becomes 5056, and so on — then
-records what each service actually got in `ports.md`. Nothing fails and
-nothing silently collides; the guides tell you to trust `ports.md` over
-their own default tables.
+- **Never forward ports** on your router. Remote access goes through a mesh VPN.
+- **Back up before** you put anything you care about on here. `scripts/backup.sh` covers configs, secrets and databases, not media.
+- **Nothing updates by itself.** Every image is pinned to the version that was tested; [`CHANGELOG.md`](CHANGELOG.md) says what each release changed.
+- **One filesystem:** downloads and library share one `MEDIA_ROOT`, so imports are hardlinks, not copies. Split them and the disk fills twice as fast.
+- **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU. NVIDIA, AMD, ARM64 and rootless Docker are written from upstream docs and not yet tested; the scripts say so when you're on one of those paths.
 
-## Status
+## Contributing
 
-Early. What is tested, and how:
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Run `./scripts/check.sh` before every commit.
 
-| Stack | Services | Verified |
-|---|---|---|
-| `arr` | Prowlarr, qBittorrent, Sonarr, Radarr, Lidarr, LazyLibrarian, Bazarr, Seerr | root folders, download client, Prowlarr sync, hardlink import |
-| `media` | Jellyfin, Navidrome, Kavita | Intel Quick Sync hardware encode, accounts created |
-| `infra` | Nginx Proxy Manager, Pi-hole, Diun | hostname → Pi-hole → NPM → correct container |
-| `monitoring` | Uptime Kuma, Dozzle | a monitor auto-created per service, all reporting up |
-| `photos` | Immich (+ optional ML) | photo upload, database dropped and restored |
-| `extras` | ntfy, Vaultwarden | backup alerts delivered; signups closed on re-run |
-| `books` | Calibre-Web-Automated | epub ingested into the library, served over OPDS |
+## Built with
 
-All 23 containers were brought up **together** from a fresh copy of this
-repo, with `setup.sh` run as a new user would, on x86_64 / Ubuntu 26.04
-with an Intel iGPU and an NVIDIA dGPU — then re-run three more times to
-confirm a re-run changes nothing.
-
-**Hardware paths:** Intel iGPU is tested on real hardware. NVIDIA, AMD,
-ARM64 and rootless Docker are written from documented behaviour and are
-**not** maintainer-tested. The scripts tell you when you are on an
-unverified path rather than pretending otherwise.
-
-## Requirements
-
-- Linux (x86_64 tested; ARM64 partly works, 32-bit ARM does not)
-- Docker Engine + Compose v2 plugin
-- 4 GiB RAM minimum, 8+ comfortable
-- Somewhere to put a library
-
-Run `./doctor.sh` and it will tell you which of these you are missing.
-
-## Back it up
-
-A homelab is one second-hand disk away from losing everything. Configs
-and secrets are small and precious; your media library is large and
-re-obtainable. `scripts/backup.sh` backs up the first kind, and
-`docs/backups.md` covers scheduling and — the part people skip — how to
-verify a restore works.
-
-## Updating
-
-Nothing updates by itself. Every image is pinned to the version that was
-tested, so an install today and one next month run the same software.
-To move a service on (or back), set its version in `.env` and run
-`docker compose up -d`. Read the release notes and back up first; see
-[`docs/updating.md`](docs/updating.md). Each release of the kit as a
-whole was tested together; [`CHANGELOG.md`](CHANGELOG.md) lists what
-changed and anything you need to do.
-
-## Getting to it from outside
-
-When you want Jellyfin on a train, **do not forward ports on your
-router** — that publishes the service to the whole internet, and
-scanners find it within hours. A mesh VPN puts your phone on your home
-network from anywhere with nothing exposed, in about ten minutes, and
-can make your local hostnames work remotely too.
-
-See [`docs/remote-access.md`](docs/remote-access.md).
-
-## Two rules worth knowing before you start
-
-**1. Downloads and library must be on one filesystem.** Every service
-mounts a single `${MEDIA_ROOT}` at `/data`. Imports then become hardlinks:
-instant, no extra disk. Split them across two mounts and every import
-silently becomes a full copy — double the disk, slow imports, and a drive
-that fills for no visible reason. This catches almost everyone once.
-
-**2. You probably don't need a GPU.** If your TV plays the file as-is, it
-direct-plays and nothing transcodes. Hardware encoding matters for several
-simultaneous streams or remote viewing over thin upload. `doctor.sh` tells
-you what you have and whether it's worth wiring up.
-
-## Checking your changes
-
-If you change anything here, run this before you commit:
-
-```bash
-./scripts/check.sh          # about 30 seconds
-./scripts/check.sh --tui    # also drives the picker in a real terminal
-```
-
-It lints every script, parses the Python and the compose files, checks
-every combination of stacks, runs `setup.sh` in a temporary copy (first
-run, re-runs, dry runs) and fails if a password reaches the output. It also
-scans for keys, tokens and image metadata. It starts no containers and
-changes nothing in your checkout. It needs Docker and git; shellcheck and
-Python come from containers if you don't have them.
-
-`LEAK_PATTERNS_FILE=~/my-patterns.txt ./scripts/check.sh` adds your own
-patterns (your name, your LAN), one regex per line. Keep that file outside
-the repo.
+Bash, Docker Compose, and the images of the projects listed in each stack guide.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).
+
+<p align="right">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dru-null/dru-null/main/assets/sig-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/dru-null/dru-null/main/assets/sig-light.svg">
+  <img alt="× ×" src="https://raw.githubusercontent.com/dru-null/dru-null/main/assets/sig-light.svg" width="60">
+</picture>
+</p>
