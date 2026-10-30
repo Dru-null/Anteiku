@@ -52,9 +52,14 @@ good() { ok "$1"; }
 h1 "Destination"
 kv "Target" "$OUT"
 SRC_FS="$(fs_of "$APPDATA" 2>/dev/null)"
-mkdir -p "$DEST" 2>/dev/null || true
-DST_FS="$(fs_of "$DEST" 2>/dev/null)"
-kv "Free there" "$(free_gb "$DEST" 2>/dev/null) GB"
+[ "$DRY_RUN" -eq 1 ] || mkdir -p "$DEST" 2>/dev/null
+# df needs a path that exists. A dry run creates nothing, so measure the
+# nearest folder that does; the backup lands on the same filesystem.
+AT="$DEST"
+while [ ! -d "$AT" ]; do AT="$(dirname "$AT")"; done
+[ "$AT" = "$DEST" ] || note "not there yet: a real run creates it (measured at $AT)"
+DST_FS="$(fs_of "$AT" 2>/dev/null)"
+kv "Free there" "$(free_gb "$AT" 2>/dev/null) GB"
 
 if [ -n "$SRC_FS" ] && [ "$SRC_FS" = "$DST_FS" ]; then
   wrn "Backup destination is on the SAME filesystem as your data."
@@ -95,14 +100,27 @@ EXCLUDES=(
 
 h1 "Plan"
 SERVICES="$(echo "${COMPOSE_PROFILES:-}" | tr ',' ' ')"
-HAVE=(); MISSING=()
+# Where a service keeps its config under appdata, when it isn't <key>.
+# "-" = nothing to keep: no config at all, or only a cache.
+# (setup.sh makes an empty appdata/<key> for every service, so a
+# directory existing is no proof that it holds anything.)
+appdir_of() {
+  case "$1" in
+    nginx-proxy-manager) echo npm ;;
+    dozzle|immich-ml)    echo - ;;
+    *)                   echo "$1" ;;
+  esac
+}
+HAVE=(); MISSING=(); NOCONF=()
 for s in $SERVICES; do
-  if [ -d "${APPDATA}/${s}" ]; then HAVE+=("$s"); else MISSING+=("$s"); fi
+  d="$(appdir_of "$s")"
+  if [ "$d" = "-" ]; then NOCONF+=("$s")
+  elif [ -d "${APPDATA}/${d}" ]; then HAVE+=("$d")
+  else MISSING+=("$s"); fi
 done
-# services whose config lives under a different directory name
-[ -d "${APPDATA}/npm" ] && HAVE+=("npm")
 
 echo "  config dirs:   ${#HAVE[@]} of $(wc -w <<< "$SERVICES") installed services"
+[ "${#NOCONF[@]}" -gt 0 ] && note "no config to keep: ${NOCONF[*]}"
 [ "${#MISSING[@]}" -gt 0 ] && note "no appdata yet (normal if never started): ${MISSING[*]}"
 DUMPS=0
 for row in $DATABASES; do
