@@ -158,6 +158,15 @@ while IFS= read -r line; do
   fi
 done < <(grep -HE '^[[:space:]]*image:' stacks/*.yaml hw/*.yaml compose.yaml)
 [ "$n" -eq 0 ] && ok "images: all $c pinned to an exact version"
+# update.sh decides from CHANGELOG.md whether a release may install by
+# itself: every entry needs an Action needed, and "None." must read as none.
+n_rel="$(grep -c '^## [0-9]' CHANGELOG.md)"; n_act="$(grep -c '^### Action needed' CHANGELOG.md)"
+got="$(printf '%s\n' '## 9.1.1 — x' '### Action needed' 'Do this.' '### Versions' '## 9.1.0 — x' \
+       '### Action needed' '' 'None.' '## 9.0.0 — x' '### Action needed' 'Old.' \
+       | (. lib/release.sh; changelog_since 9.0.0 9.1.1 | action_needed) | tr '\n' '|')"
+if [ "$n_rel" -eq 0 ] || [ "$n_rel" != "$n_act" ]; then err "CHANGELOG.md: $n_rel release(s), $n_act Action needed section(s)"
+elif [ "$got" != "9.1.1:|Do this.|" ]; then err "lib/release.sh misreads Action needed: $got"
+else ok "CHANGELOG: $n_rel release(s), each with Action needed; update.sh reads them"; fi
 k_py="$(sed -n 's/^PYTHON_IMAGE="\(.*\)"$/\1/p' scripts/kuma-bootstrap.sh)"
 [ "$k_py" = "$PYTHON_IMAGE" ] || err "kuma-bootstrap.sh and check.sh use different Python images (${k_py:-none} vs $PYTHON_IMAGE)"
 
@@ -217,11 +226,11 @@ n=0
 for f in "${FILES[@]}"; do
   case "/$f" in
     */.env.example) ;;
-    */.env|*/.env.*|*/ports.md|*/__pycache__/*|*.pyc|/appdata/*|/media/*|/photos/*|/testdata/*|/backup-logs/*|*.bak|*.log)
+    */.env|*/.env.*|*/ports.md|*/__pycache__/*|*.pyc|/appdata/*|/media/*|/photos/*|/testdata/*|/backup-logs/*|/update-logs/*|*.bak|*.log)
       err "install state would be committed: $f"; n=$((n+1)) ;;
   esac
 done
-for p in .env .env.bak ports.md appdata/x media/x photos/x backup-logs/x scripts/__pycache__/x.pyc; do
+for p in .env .env.bak ports.md appdata/x media/x photos/x backup-logs/x update-logs/x scripts/__pycache__/x.pyc; do
   git check-ignore -q --no-index "$p" || { err ".gitignore does not cover $p"; n=$((n+1)); }
 done
 [ "$n" -eq 0 ] && ok "no install state committable; .gitignore covers it"
