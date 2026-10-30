@@ -123,6 +123,15 @@ if [ -n "$PREV_PROFILES" ]; then
     case ",$PREV_PROFILES," in *",${CAT_KEYS[$i]},"*) SEL[i]=1 ;; *) SEL[i]=0 ;; esac
   done
 fi
+# Installed earlier, since removed from Anteiku (Diun, for one). This run
+# drops them from COMPOSE_PROFILES, so compose stops managing them, but
+# their containers keep running. The end of the run says how to finish.
+GONE=()
+IFS=, read -ra _prev <<< "$PREV_PROFILES"
+for x in "${_prev[@]}"; do
+  [ -n "$x" ] || continue
+  case " ${CAT_KEYS[*]} " in *" $x "*) ;; *) GONE+=("$x") ;; esac
+done
 
 # ============================================================
 #  Re-run detection.
@@ -508,11 +517,12 @@ for ((i=0;i<N;i++)); do
 done
 if [ "$RERUN" -eq 1 ]; then
   h1 "Changes"
-  if [ "${#ADDED[@]}" -eq 0 ] && [ "${#REMOVED[@]}" -eq 0 ]; then
+  if [ "${#ADDED[@]}" -eq 0 ] && [ "${#REMOVED[@]}" -eq 0 ] && [ "${#GONE[@]}" -eq 0 ]; then
     info "No change to your services ${S_DOT} refreshing config only (.env, ports.md)."
   fi
   for x in "${ADDED[@]}";   do printf '  %s+%s  %s%s%s\n' "$C_OK$C_B" "$C_RST" "$C_B" "$x" "$C_RST"; done
   for x in "${REMOVED[@]}"; do printf '  %s−%s  %s%s%s %s(container and data are NOT deleted — see the end)%s\n' "$C_ERR$C_B" "$C_RST" "$C_ERR" "$x" "$C_RST" "$C_GREY" "$C_RST"; done
+  for x in "${GONE[@]}";    do printf '  %s−%s  %s%s%s %s(no longer part of Anteiku; container and data are NOT deleted — see the end)%s\n' "$C_ERR$C_B" "$C_RST" "$C_ERR" "$x" "$C_RST" "$C_GREY" "$C_RST"; done
 fi
 
 CHOSEN=()
@@ -1234,6 +1244,32 @@ if [ "${#REMOVED[@]}" -gt 0 ]; then
     printf '\n  %s%s%s\n' "$C_B" "$x" "$C_RST"
     printf '    stop and remove:  %sdocker compose --profile %s rm -sf %s%s\n' "$C_B" "$x" "${svcs:-$x}" "$C_RST"
     printf '    its data, kept:   %s%s/%s%s  %s(delete it yourself once you are sure)%s\n' "$C_B" "$APPDATA_DEF" "$x" "$C_RST" "$C_GREY" "$C_RST"
+  done
+  echo
+  note "Also delete its Uptime Kuma monitor and any proxy host pointing at"
+  note "it, or they will keep alerting about a service that is gone."
+fi
+
+# Gone from the catalogue: compose no longer defines the service, so
+# "compose rm" can't remove it. Look the container up by this project's
+# label, never by name alone: another stack may have one called the same.
+if [ "${#GONE[@]}" -gt 0 ]; then
+  h1 "No longer part of Anteiku"
+  warn "Installed earlier, since removed from Anteiku. They are no longer"
+  warn "managed, but are NOT deleted. CHANGELOG.md says why they went."
+  for x in "${GONE[@]}"; do
+    names="${STACK_PREFIX}$x"
+    [ "$DET_DOCKER_OK" -eq 1 ] && names="$(docker ps -a --filter "label=com.docker.compose.project=$MY_PROJECT" \
+      --format '{{.Names}}' 2>/dev/null | grep -Fx "${STACK_PREFIX}$x" || true)"
+    printf '\n  %s%s%s\n' "$C_B" "$x" "$C_RST"
+    if [ -n "$names" ]; then
+      printf '    stop and remove:  %sdocker rm -f %s%s\n' "$C_B" "$names" "$C_RST"
+    else
+      printf '    container:        %snone left in project %s%s\n' "$C_GREY" "$MY_PROJECT" "$C_RST"
+    fi
+    if [ -d "$APPDATA_DEF/$x" ]; then
+      printf '    its data, kept:   %s%s/%s%s  %s(delete it yourself once you are sure)%s\n' "$C_B" "$APPDATA_DEF" "$x" "$C_RST" "$C_GREY" "$C_RST"
+    fi
   done
   echo
   note "Also delete its Uptime Kuma monitor and any proxy host pointing at"
