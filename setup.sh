@@ -97,7 +97,6 @@ navidrome|media|off|4533|4533|Music streaming (Subsonic-compatible apps)
 kavita|media|off|5000|5000|Ebooks and comics reader
 nginx-proxy-manager|infra|off|80|80|Reverse proxy: nice hostnames, not ports
 pihole|infra|off|53|53|Network-wide DNS and ad blocking
-diun|infra|off|-|-|Update notifications (no web UI)
 uptime-kuma|monitoring|off|3001|3001|Uptime checks and phone alerts
 dozzle|monitoring|off|8888|8080|Container logs in a browser
 immich|photos|off|2283|2283|Photo and video backup for your phone
@@ -1092,7 +1091,7 @@ write_ports_md() {
     for ((i=0;i<N;i++)); do
       [ "${SEL[$i]}" -eq 1 ] || continue
       k="${CAT_KEYS[$i]}"; ip="${CAT_INTERNAL[$i]}"
-      # Services with nothing to browse to (Diun, Immich ML) still get a
+      # Services with nothing to browse to (Immich ML) still get a
       # row, so the table is a complete list of what is installed.
       if [ "${CAT_PORT[$i]}" = "-" ]; then
         echo "| \`${STACK_PREFIX}${k}\` | no web UI | — | — | — |"
