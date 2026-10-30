@@ -118,7 +118,9 @@ What `./update.sh` does, in order, stopping at the first problem:
    to its tag; never a merge).
 5. Re-runs `./setup.sh --yes`: your settings, passwords and overrides
    are kept. Overrides still win over the new pins; it reminds you
-   which are active.
+   which are active. If the release removed a service you have, it
+   shows setup's "No longer part of Anteiku" notice: the `docker rm -f`
+   for its container and where its data is. Nothing is deleted for you.
 6. `docker compose pull`, `docker compose up -d`, and shows the result.
 
 If a step fails after the files moved, it prints the exact commands to
@@ -134,7 +136,7 @@ any time, or with `./setup.sh --reconfigure`.
 | `UPDATE_MODE` | What the weekly check does |
 |---|---|
 | `notify` (default) | One message per new release: version, Action needed, changelog link. You run `./update.sh` |
-| `auto` | Runs `update.sh` by itself, backup included, then tells you how it went. Never a release with Action needed (you get a message instead), never one less than 3 days old |
+| `auto` | Runs `update.sh` by itself, backup included, then tells you how it went, including any service the release removed and the command to finish. Never a release with Action needed (you get a message instead), never one less than 3 days old |
 | `off` | Nothing. `./update.sh --check` still works by hand |
 
 The weekly check is one line in your crontab, Sundays at 04:30:
