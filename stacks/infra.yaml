@@ -1,5 +1,5 @@
 # ============================================================
-#  infra — reverse proxy, network-wide DNS/adblock, update alerts
+#  infra — reverse proxy, network-wide DNS/adblock
 # ============================================================
 #  ALL OPTIONAL. Every service you have installed so far already works
 #  on its own port. This stack replaces "http://192.168.1.50:8989" with
@@ -61,31 +61,3 @@ services:
     cap_add:
       - SYS_NICE
 
-  # --- Diun: tells you when an image has an update --------------------
-  # It does NOT apply updates. That is the point: you get a notification
-  # and update when you choose to, having read the release notes.
-  #
-  # Auto-updating a homelab unattended is how you wake up to a service
-  # that changed its config format overnight. Pinning plus a nudge beats
-  # surprise.
-  #
-  # Notifications are off until you configure one - see infra.md.
-  diun:
-    image: crazymax/diun:${DIUN_VERSION:-4.33.1}
-    container_name: ${STACK_PREFIX}diun
-    profiles: ["diun"]
-    restart: unless-stopped
-    command: serve
-    environment:
-      TZ: ${TZ}
-      LOG_LEVEL: info
-      DIUN_WATCH_SCHEDULE: "0 8 * * *"
-      DIUN_WATCH_FIRSTCHECKNOTIF: "false"
-      DIUN_PROVIDERS_DOCKER: "true"
-      DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT: "true"
-    volumes:
-      - ${APPDATA}/diun:/data
-      # Read-only socket: Diun needs to list your containers and their
-      # images. Read-only matters - the docker socket is root on the
-      # host, so never mount it writable unless a service truly needs it.
-      - /var/run/docker.sock:/var/run/docker.sock:ro

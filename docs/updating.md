@@ -132,9 +132,7 @@ to it means checking the bootstrap first.
 
 ## Diun
 
-As set up here, Diun watches the exact tag each container runs, and an
-exact version is rarely re-published. So with pinned versions it will
-mostly stay quiet. Diun can also watch for newer tags (its
-`diun.watch_repo` label); if you turn that on, treat a notification as
-information, not advice. A newer version upstream has not been tested
-with the rest of this kit.
+Older releases shipped Diun, which reported new upstream images. With
+every version pinned and tested in releases, it either stayed quiet or
+pointed at versions nobody had tested together, so it was removed. If
+you have it, the release that removed it says how to take it out.

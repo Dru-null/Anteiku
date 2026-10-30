@@ -46,8 +46,6 @@ Example output for an eight-service install:
       sonarr                 http://sonarr:8989/
   Infra
       dozzle                 http://dozzle:8080/
-  Containers
-      diun                   docker container diun
   External
       Internet               ping 1.1.1.1
 ```
@@ -72,7 +70,7 @@ the UI afterwards if you like; `.env` is only used for the first setup.
 | **Media** | Jellyfin, Navidrome, Kavita, Seerr | What the household notices |
 | **Acquisition** | *arrs, download client | Annoying when broken, nothing is on fire |
 | **Infra** | Dozzle, dashboards | Supporting cast |
-| **Containers** | things with no HTTP | Checked by container state instead |
+| **Containers** | things with no HTTP (none in the kit today) | Checked by container state instead |
 | **External** | Internet ping | See below — the most useful one |
 
 The point of grouping is triage at a glance. Six red ticks under
@@ -162,7 +160,7 @@ system. Fix it now rather than finding out during a real outage.
 
 ## Docker-type monitors
 
-Services with no HTTP endpoint — Diun, for instance — cannot be checked
+Services with no HTTP endpoint (none in the kit today) cannot be checked
 with a URL. Kuma can watch the container itself, but that needs a
 **Docker Host** entry first, which the script cannot create blind. It
 reports these and moves on.

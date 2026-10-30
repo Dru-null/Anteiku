@@ -31,7 +31,6 @@ bazarr|Acquisition|http|bazarr:6767|/|
 qbittorrent|Acquisition|http|qbittorrent:8080|/|401
 dozzle|Infra|http|dozzle:8080|/|
 ntfy|Infra|http|ntfy:80|/v1/health|
-diun|Containers|docker|diun||
 """
 
 GROUP_ORDER = ["Critical", "Media", "Acquisition", "Infra", "Containers", "External"]

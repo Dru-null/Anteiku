@@ -53,22 +53,23 @@
 <text x="55.6" y="413.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
 <text x="97.6" y="413.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">pihole</text>
 <text x="274.0" y="413.5" fill="#8c8a85" textLength="268.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Network-wide DNS and ad blocking</text>
-<text x="55.6" y="431.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
-<text x="97.6" y="431.5" fill="#e4e1da" textLength="33.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">diun</text>
-<text x="274.0" y="431.5" fill="#8c8a85" textLength="268.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Update notifications (no web UI)</text>
-<text x="38.8" y="467.5" fill="#e4e1da" font-weight="700" textLength="84.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">monitoring</text>
-<text x="131.2" y="467.5" fill="#6a6a6a" textLength="235.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· know when something breaks</text>
+<text x="38.8" y="449.5" fill="#e4e1da" font-weight="700" textLength="84.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">monitoring</text>
+<text x="131.2" y="449.5" fill="#6a6a6a" textLength="235.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· know when something breaks</text>
+<text x="55.6" y="467.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="467.5" fill="#e4e1da" textLength="92.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">uptime-kuma</text>
+<text x="274.0" y="467.5" fill="#8c8a85" textLength="252.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Uptime checks and phone alerts</text>
 <text x="55.6" y="485.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
-<text x="97.6" y="485.5" fill="#e4e1da" textLength="92.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">uptime-kuma</text>
-<text x="274.0" y="485.5" fill="#8c8a85" textLength="252.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Uptime checks and phone alerts</text>
-<text x="55.6" y="503.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
-<text x="97.6" y="503.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">dozzle</text>
-<text x="274.0" y="503.5" fill="#8c8a85" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Container logs in a browser</text>
-<text x="38.8" y="539.5" fill="#e4e1da" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">photos</text>
-<text x="97.6" y="539.5" fill="#6a6a6a" textLength="168.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· phone photo backup</text>
+<text x="97.6" y="485.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">dozzle</text>
+<text x="274.0" y="485.5" fill="#8c8a85" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Container logs in a browser</text>
+<text x="38.8" y="521.5" fill="#e4e1da" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">photos</text>
+<text x="97.6" y="521.5" fill="#6a6a6a" textLength="168.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· phone photo backup</text>
+<text x="55.6" y="539.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="539.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">immich</text>
+<text x="274.0" y="539.5" fill="#8c8a85" textLength="310.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Photo and video backup for your phone</text>
 <text x="55.6" y="557.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
-<text x="97.6" y="557.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">immich</text>
-<text x="274.0" y="557.5" fill="#8c8a85" textLength="310.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Photo and video backup for your phone</text>
+<text x="97.6" y="557.5" fill="#e4e1da" textLength="75.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">immich-ml</text>
+<text x="274.0" y="557.5" fill="#8c8a85" textLength="369.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Face recognition and smart search for Immich</text>
+<text x="736.0" y="557.5" fill="#c9a45c" textLength="75.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">CPU-heavy</text>
 <text x="38.8" y="575.5" fill="#6a6a6a" textLength="100.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">↓ more below</text>
 <text x="38.8" y="593.5" fill="#e4e1da" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Ebooks and comics reader</text>
 <text x="257.2" y="593.5" fill="#6a6a6a" textLength="159.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· default port 5000</text>

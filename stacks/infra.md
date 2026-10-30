@@ -13,7 +13,6 @@ come back. Half-configured DNS is more annoying than typing ports.
 |---|---|---|---|
 | `nginx-proxy-manager` | 80 / 443 / 81 | Hostnames and HTTPS | off |
 | `pihole` | 53 / 8053 | DNS server and ad blocking | off |
-| `diun` | none | Tells you when images have updates | off |
 
 ---
 
@@ -281,32 +280,6 @@ minutes, and also solves the HTTPS problem above via Tailscale Serve.
 It can additionally make these same `.home` names resolve when you are
 away, so one bookmark works everywhere. See
 [`../docs/remote-access.md`](../docs/remote-access.md).
-
----
-
-## Diun — update notifications
-
-Watches your images and tells you when a new one is published. It does
-**not** update anything.
-
-That restraint is deliberate. Unattended auto-updates are how you
-discover at 2am that a service changed its config format. A notification
-lets you read the release notes and choose.
-
-Notifications are off by default. To get them, add a provider to the
-`diun` service in `stacks/infra.yaml`:
-
-```yaml
-    environment:
-      DIUN_NOTIF_DISCORD_WEBHOOKURL: ${DIUN_DISCORD_WEBHOOK}
-```
-
-and put the secret in `.env`. Diun supports Discord, Telegram, Gotify,
-ntfy, email and more — see its docs.
-
-It mounts the Docker socket **read-only** so it can list your containers.
-Keep it read-only: the socket is root access to the host, and a writable
-mount hands that to anything that compromises the container.
 
 ---
 
