@@ -988,7 +988,11 @@ TMP="$(mktemp)"
 # Never show secrets on screen: people paste this output into issues and
 # chats. They are in the file itself, which is mode 600.
 SECRET_RE="${SECRET_KEYS// /|}"
-sed -E "s/^(${SECRET_RE})=.*/\1=${C_GREY}<hidden>${C_RST}/; s/^/  /" "$TMP"
+# Comments muted, keys coloured; both are no-ops without colour.
+sed -E "s/^(${SECRET_RE})=.*/\1=${C_GREY}<hidden>${C_RST}/
+        s/^(#.*)/${C_NOTE}\1${C_RST}/
+        s/^([A-Z0-9_]+)=/${C_INF}\1${C_RST}=/
+        s/^/  /" "$TMP"
 note "Passwords are hidden here. They are in $ENV_FILE (readable only by you)."
 if [ "${#OVERRIDES[@]}" -gt 0 ]; then
   warn "${#OVERRIDES[@]} service(s) held at a version override: ${OVERRIDES[*]%%=*}"
@@ -1157,7 +1161,7 @@ write_ports_md() {
 write_ports_md
 
 h1 "Next"
-step() { printf '  %s%s%s  %-20s %s%s%s%s\n' "$C_INF$C_B" "$1" "$C_RST" "$2" "$C_B" "$3" "$C_RST" "${4:+  $C_GREY$4$C_RST}"; }
+step() { printf '  %s%s%s  %-20s %s%s%s%s\n' "$C_CRIM$C_B" "$1" "$C_RST" "$2" "$C_B$C_INF" "$3" "$C_RST" "${4:+  $C_GREY$4$C_RST}"; }
 step 1 "Your ports"       "cat ports.md"          "bookmark this"
 step 2 "Review config"    "cat $ENV_FILE"
 step 3 "Check the plan"   "docker compose config"
@@ -1200,11 +1204,11 @@ _tell() {
 [ "$RERUN" -eq 1 ] && [ "${#ADDED[@]}" -eq 0 ] && exit 0
 h1 "What you will see on first start (all normal)"
 
-printf '  %sGive it a minute.%s Containers create their databases on first\n' "$C_B$C_INF" "$C_RST"
+printf '  %sGive it a minute.%s Containers create their databases on first\n' "$C_B$C_CRIM" "$C_RST"
 printf '  boot. A service may restart once or show 502 while it does.\n\n'
 
 if _tell sonarr || _tell radarr || _tell lidarr; then
-  printf '  %s"No indexers available" — expected, not broken.%s\n' "$C_B$C_INF" "$C_RST"
+  printf '  %s"No indexers available" — expected, not broken.%s\n' "$C_B$C_CRIM" "$C_RST"
   printf '  Sonarr and Radarr show this on their Health page as an ERROR.\n'
   printf '  It is correct: this project ships no indexers, so until you add\n'
   printf '  your own there is nothing for them to search. Everything else\n'
@@ -1212,52 +1216,52 @@ if _tell sonarr || _tell radarr || _tell lidarr; then
 fi
 
 if _tell qbittorrent; then
-  printf '  %sqBittorrent generates a temporary password.%s Read it with:\n' "$C_B$C_INF" "$C_RST"
-  printf '    docker compose logs qbittorrent | grep -i password\n'
+  printf '  %sqBittorrent generates a temporary password.%s Read it with:\n' "$C_B$C_CRIM" "$C_RST"
+  printf '    %sdocker compose logs qbittorrent | grep -i password%s\n' "$C_B$C_INF" "$C_RST"
   printf '  Log in, then change it immediately — it is regenerated on every\n'
   printf '  restart until you set your own.\n\n'
-  printf '  %sSet a seeding ratio limit%s (Options > BitTorrent > Seeding\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sSet a seeding ratio limit%s (Options > BitTorrent > Seeding\n' "$C_B$C_CRIM" "$C_RST"
   printf '  Limits). Without one nothing ever retires a finished torrent and\n'
   printf '  the download directory grows until the disk is full.\n\n'
 fi
 
 if _tell seerr && [ "$DET_UID" != "1000" ]; then
-  printf '  %sSeerr runs as uid 1000, not as you (uid %s).%s Give it its\n' "$C_B" "$DET_UID" "$C_RST"
+  printf '  %sSeerr runs as uid 1000, not as you (uid %s).%s Give it its\n' "$C_B$C_CRIM" "$DET_UID" "$C_RST"
   printf '  config directory before starting, or it cannot write there:\n'
-  printf '    sudo chown -R 1000:1000 %s/seerr\n\n' "$APPDATA_DEF"
+  printf '    %ssudo chown -R 1000:1000 %s/seerr%s\n\n' "$C_B$C_INF" "$APPDATA_DEF" "$C_RST"
 fi
 
 if [ "${DISCOVERY_MOVED:-0}" -eq 1 ]; then
-  printf '  %sJellyfin auto-discovery is off.%s Its discovery port was taken,\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sJellyfin auto-discovery is off.%s Its discovery port was taken,\n' "$C_B$C_CRIM" "$C_RST"
   printf '  so clients will not find the server by themselves. Enter the\n'
   printf '  address from ports.md manually in your Jellyfin app. Playback is\n'
   printf '  completely unaffected.\n\n'
 fi
 
 if _tell calibre-web; then
-  printf '  %sCalibre-Web default login is admin / admin123.%s Change it on\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sCalibre-Web default login is admin / admin123.%s Change it on\n' "$C_B$C_CRIM" "$C_RST"
   printf '  first login. Files dropped in books/ingest are MOVED into the\n'
   printf '  library - never put your only copy there.\n\n'
 fi
 
 if _tell vaultwarden; then
-  printf '  %sVaultwarden: turn signups OFF once your account exists.%s\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sVaultwarden: turn signups OFF once your account exists.%s\n' "$C_B$C_CRIM" "$C_RST"
   printf '  Set VAULTWARDEN_SIGNUPS=false in .env and run compose again.\n'
   printf '  Until then anyone who reaches the page can create an account on\n'
   printf '  your password manager.\n\n'
-  printf '  %sThe browser extensions and phone apps need HTTPS.%s Plain http\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sThe browser extensions and phone apps need HTTPS.%s Plain http\n' "$C_B$C_CRIM" "$C_RST"
   printf '  works in a browser tab and will NOT work in the extension. The\n'
   printf '  one-command fix is in stacks/extras.md.\n\n'
 fi
 
 if _tell ntfy; then
-  printf '  %sRun ./scripts/ntfy-setup.sh%s to create the ntfy user. Nothing\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sRun ./scripts/ntfy-setup.sh%s to create the ntfy user. Nothing\n' "$C_B$C_CRIM" "$C_RST"
   printf '  can publish or subscribe until you do - it ships deny-all on\n'
   printf '  purpose.\n\n'
 fi
 
 if _tell immich && ! _sel_has immich-ml; then
-  printf '  %sImmich: switch machine learning off after first login.%s\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sImmich: switch machine learning off after first login.%s\n' "$C_B$C_CRIM" "$C_RST"
   printf '  Administration > Settings > Machine Learning > untick Enabled.\n'
   printf '  Until you do, the log repeats "Machine learning server became\n'
   printf '  unhealthy" - it is looking for a container you chose not to\n'
@@ -1265,13 +1269,13 @@ if _tell immich && ! _sel_has immich-ml; then
 fi
 
 if _tell immich-ml; then
-  printf '  %sImmich will get very busy on first scan.%s Face and smart-search\n' "$C_B$C_INF" "$C_RST"
+  printf '  %sImmich will get very busy on first scan.%s Face and smart-search\n' "$C_B$C_CRIM" "$C_RST"
   printf '  jobs start as soon as photos arrive and can run for hours. That\n'
   printf '  is expected, it is one-time, and you can pause it any time in\n'
   printf '  Administration > Jobs.\n\n'
 fi
 
-printf '  %sConnect services by container NAME, not by IP.%s When one app\n' "$C_B$C_INF" "$C_RST"
+printf '  %sConnect services by container NAME, not by IP.%s When one app\n' "$C_B$C_CRIM" "$C_RST"
 printf '  asks where another lives, use the "Inside Docker" column of\n'
 printf '  ports.md (e.g. qbittorrent:8080) — never your LAN IP and never\n'
 printf '  the host port. See ports.md for why.\n'

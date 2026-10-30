@@ -14,10 +14,19 @@
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   C_RST=$'\033[0m'; C_B=$'\033[1m'; C_DIM=$'\033[2m'
   C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'
-  C_INF=$'\033[36m'; C_ACC=$'\033[35m'; C_GREY=$'\033[90m'
+  C_INF=$'\033[36m'; C_GREY=$'\033[90m'
+  # Crimson for titles and what matters; a muted crimson for notes, so a
+  # paragraph of advice doesn't read as an error. Exact where the terminal
+  # says it can, nearest of 256 otherwise, plain red on anything older.
+  case "${COLORTERM:-}:${TERM:-}" in
+    truecolor:*|24bit:*) C_CRIM=$'\033[38;2;200;50;60m'; C_NOTE=$'\033[38;2;178;110;114m' ;;
+    *:*256color*)        C_CRIM=$'\033[38;5;161m';       C_NOTE=$'\033[38;5;138m' ;;
+    *)                   C_CRIM=$'\033[31m';             C_NOTE=$'\033[31m' ;;
+  esac
+  C_ACC="$C_CRIM"   # the picker's cursor and "new" tags
 else
   C_RST=''; C_B=''; C_DIM=''; C_OK=''; C_WARN=''; C_ERR=''
-  C_INF=''; C_ACC=''; C_GREY=''
+  C_INF=''; C_ACC=''; C_GREY=''; C_CRIM=''; C_NOTE=''
 fi
 case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
   *UTF-8*|*utf-8*|*UTF8*|*utf8*)
@@ -43,23 +52,23 @@ _rule() { local n="$1" out=""; while [ "$n" -gt 0 ]; do out="$out$S_RULE"; n=$((
 # banner "title" "subtitle"
 banner() {
   local w=60
-  printf '%s%s%s%s%s\n' "$C_INF" "$S_TL" "$(_rule $w)" "$S_TR" "$C_RST"
-  printf '%s%s%s  %s%s%s%s%s%s\n' "$C_INF" "$S_V" "$C_RST" "$C_B" "$(_pad "$1" $((w-2)))" "$C_RST" "$C_INF" "$S_V" "$C_RST"
-  [ -n "${2:-}" ] && printf '%s%s%s  %s%s%s%s%s%s\n' "$C_INF" "$S_V" "$C_RST" "$C_GREY" "$(_pad "$2" $((w-2)))" "$C_RST" "$C_INF" "$S_V" "$C_RST"
-  printf '%s%s%s%s%s\n' "$C_INF" "$S_BL" "$(_rule $w)" "$S_BR" "$C_RST"
+  printf '%s%s%s%s%s\n' "$C_CRIM" "$S_TL" "$(_rule $w)" "$S_TR" "$C_RST"
+  printf '%s%s%s  %s%s%s%s%s%s\n' "$C_CRIM" "$S_V" "$C_RST" "$C_B" "$(_pad "$1" $((w-2)))" "$C_RST" "$C_CRIM" "$S_V" "$C_RST"
+  [ -n "${2:-}" ] && printf '%s%s%s  %s%s%s%s%s%s\n' "$C_CRIM" "$S_V" "$C_RST" "$C_GREY" "$(_pad "$2" $((w-2)))" "$C_RST" "$C_CRIM" "$S_V" "$C_RST"
+  printf '%s%s%s%s%s\n' "$C_CRIM" "$S_BL" "$(_rule $w)" "$S_BR" "$C_RST"
 }
 
 # Section header:  ── Title ─────────────
 h1() {
   local t="$1" n=$(( 56 - ${#1} )); [ "$n" -lt 3 ] && n=3
-  printf '\n%s%s%s %s%s%s %s%s%s\n' "$C_INF" "$(_rule 2)" "$C_RST" "$C_B$C_INF" "$t" "$C_RST" "$C_DIM" "$(_rule $n)" "$C_RST"
+  printf '\n%s%s%s %s%s%s %s%s%s\n' "$C_CRIM" "$(_rule 2)" "$C_RST" "$C_B$C_CRIM" "$t" "$C_RST" "$C_GREY" "$(_rule $n)" "$C_RST"
 }
 kv()   { printf '  %s%-20s%s %s\n' "$C_GREY" "$1" "$C_RST" "$2"; }
 ok()   { printf '  %s%s%s  %s\n' "$C_OK"   "$S_OK"   "$C_RST" "$1"; }
 info() { printf '  %s%s%s  %s\n' "$C_INF"  "$S_INFO" "$C_RST" "$1"; }
 warn() { printf '  %s%s%s  %s%s%s\n' "$C_WARN" "$S_WARN" "$C_RST" "$C_WARN" "$1" "$C_RST"; FINDINGS_WARN=$((FINDINGS_WARN+1)); }
 err()  { printf '  %s%s%s  %s%s%s%s\n' "$C_ERR" "$S_ERR" "$C_RST" "$C_B" "$C_ERR" "$1" "$C_RST"; FINDINGS_ERR=$((FINDINGS_ERR+1)); }
-note() { printf '     %s%s%s\n' "$C_DIM" "$1" "$C_RST"; }
+note() { printf '     %s%s%s\n' "$C_NOTE" "$1" "$C_RST"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
