@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="917" height="656" viewBox="0 0 917 656" font-family="'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-size="14">
+<rect width="917" height="656" rx="8" fill="#141414"/>
+<text x="38.8" y="35.5" fill="#e4e1da" font-weight="700" textLength="58.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">anteiku</text>
+<text x="106.0" y="35.5" fill="#6a6a6a" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·</text>
+<text x="122.8" y="35.5" fill="#e4e1da" font-weight="700" textLength="184.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">choose what to install</text>
+<text x="341.2" y="35.5" fill="#9db58f" textLength="84.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">6 selected</text>
+<text x="38.8" y="53.5" fill="#e4e1da" textLength="537.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">A starter set is ticked for you. Untick anything you don&#x27;t want.</text>
+<text x="38.8" y="71.5" fill="#6a6a6a" textLength="478.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Ships NO indexers and no sources · Prowlarr starts empty.</text>
+<text x="38.8" y="107.5" fill="#e4e1da" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">arr</text>
+<text x="72.4" y="107.5" fill="#6a6a6a" textLength="218.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· find, fetch and organise</text>
+<text x="55.6" y="125.5" fill="#9db58f" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[✓]</text>
+<text x="97.6" y="125.5" fill="#e4e1da" font-weight="700" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">prowlarr</text>
+<text x="274.0" y="125.5" fill="#8c8a85" textLength="319.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Indexer manager: the hub the *arrs ask</text>
+<text x="55.6" y="143.5" fill="#9db58f" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[✓]</text>
+<text x="97.6" y="143.5" fill="#e4e1da" font-weight="700" textLength="92.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">qbittorrent</text>
+<text x="274.0" y="143.5" fill="#8c8a85" textLength="126.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Download client</text>
+<text x="55.6" y="161.5" fill="#9db58f" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[✓]</text>
+<text x="97.6" y="161.5" fill="#e4e1da" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">sonarr</text>
+<text x="274.0" y="161.5" fill="#8c8a85" textLength="176.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">TV library management</text>
+<text x="55.6" y="179.5" fill="#9db58f" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[✓]</text>
+<text x="97.6" y="179.5" fill="#e4e1da" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">radarr</text>
+<text x="274.0" y="179.5" fill="#8c8a85" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Movie library management</text>
+<text x="55.6" y="197.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="197.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">lidarr</text>
+<text x="274.0" y="197.5" fill="#8c8a85" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Music library management</text>
+<text x="55.6" y="215.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="215.5" fill="#e4e1da" textLength="109.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">lazylibrarian</text>
+<text x="274.0" y="215.5" fill="#8c8a85" textLength="168.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Books and audiobooks</text>
+<text x="55.6" y="233.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="233.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">bazarr</text>
+<text x="274.0" y="233.5" fill="#8c8a85" textLength="310.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Subtitles for Sonarr/Radarr libraries</text>
+<text x="55.6" y="251.5" fill="#9db58f" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[✓]</text>
+<text x="97.6" y="251.5" fill="#e4e1da" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">seerr</text>
+<text x="274.0" y="251.5" fill="#8c8a85" textLength="243.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Request UI for your household</text>
+<text x="38.8" y="287.5" fill="#e4e1da" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">media</text>
+<text x="89.2" y="287.5" fill="#6a6a6a" textLength="176.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· watch, listen, read</text>
+<text x="55.6" y="305.5" fill="#9db58f" font-weight="700" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[✓]</text>
+<text x="97.6" y="305.5" fill="#e4e1da" font-weight="700" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">jellyfin</text>
+<text x="274.0" y="305.5" fill="#8c8a85" textLength="310.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Film and TV streaming: the main event</text>
+<text x="55.6" y="323.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="323.5" fill="#e4e1da" textLength="75.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">navidrome</text>
+<text x="274.0" y="323.5" fill="#8c8a85" textLength="352.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Music streaming (Subsonic-compatible apps)</text>
+<text x="38.8" y="341.5" fill="#c8323c" font-weight="700" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">❯</text>
+<text x="55.6" y="341.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<rect x="97.6" y="328.0" width="168.0" height="18" fill="#e4e1da"/>
+<text x="97.6" y="341.5" fill="#141414" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">kavita</text>
+<text x="274.0" y="341.5" fill="#8c8a85" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Ebooks and comics reader</text>
+<text x="38.8" y="377.5" fill="#e4e1da" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">infra</text>
+<text x="89.2" y="377.5" fill="#6a6a6a" textLength="336.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· proxy, network-wide DNS, update alerts</text>
+<text x="55.6" y="395.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="395.5" fill="#e4e1da" textLength="159.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">nginx-proxy-manager</text>
+<text x="274.0" y="395.5" fill="#8c8a85" textLength="336.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Reverse proxy: nice hostnames, not ports</text>
+<text x="55.6" y="413.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="413.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">pihole</text>
+<text x="274.0" y="413.5" fill="#8c8a85" textLength="268.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Network-wide DNS and ad blocking</text>
+<text x="55.6" y="431.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="431.5" fill="#e4e1da" textLength="33.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">diun</text>
+<text x="274.0" y="431.5" fill="#8c8a85" textLength="268.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Update notifications (no web UI)</text>
+<text x="38.8" y="467.5" fill="#e4e1da" font-weight="700" textLength="84.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">monitoring</text>
+<text x="131.2" y="467.5" fill="#6a6a6a" textLength="235.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· know when something breaks</text>
+<text x="55.6" y="485.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="485.5" fill="#e4e1da" textLength="92.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">uptime-kuma</text>
+<text x="274.0" y="485.5" fill="#8c8a85" textLength="252.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Uptime checks and phone alerts</text>
+<text x="55.6" y="503.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="503.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">dozzle</text>
+<text x="274.0" y="503.5" fill="#8c8a85" textLength="226.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Container logs in a browser</text>
+<text x="38.8" y="539.5" fill="#e4e1da" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">photos</text>
+<text x="97.6" y="539.5" fill="#6a6a6a" textLength="168.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· phone photo backup</text>
+<text x="55.6" y="557.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
+<text x="97.6" y="557.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">immich</text>
+<text x="274.0" y="557.5" fill="#8c8a85" textLength="310.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Photo and video backup for your phone</text>
+<text x="38.8" y="575.5" fill="#6a6a6a" textLength="100.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">↓ more below</text>
+<text x="38.8" y="593.5" fill="#e4e1da" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Ebooks and comics reader</text>
+<text x="257.2" y="593.5" fill="#6a6a6a" textLength="159.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· default port 5000</text>
+<text x="38.8" y="629.5" fill="#e4e1da" font-weight="700" textLength="16.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">↑↓</text>
+<text x="64.0" y="629.5" fill="#e4e1da" textLength="33.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">move</text>
+<text x="114.4" y="629.5" fill="#e4e1da" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">space</text>
+<text x="164.8" y="629.5" fill="#e4e1da" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">select</text>
+<text x="232.0" y="629.5" fill="#e4e1da" font-weight="700" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">a</text>
+<text x="248.8" y="629.5" fill="#e4e1da" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">all</text>
+<text x="290.8" y="629.5" fill="#e4e1da" font-weight="700" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">n</text>
+<text x="307.6" y="629.5" fill="#e4e1da" textLength="33.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">none</text>
+<text x="358.0" y="629.5" fill="#e4e1da" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">enter</text>
+<text x="408.4" y="629.5" fill="#e4e1da" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">continue</text>
+<text x="492.4" y="629.5" fill="#e4e1da" font-weight="700" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">q</text>
+<text x="509.2" y="629.5" fill="#e4e1da" textLength="33.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">quit</text>
+</svg>
