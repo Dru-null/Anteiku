@@ -314,6 +314,7 @@ run_setup yes1 --yes; rc=$?
 step "first run, --yes" yes1 "$rc"
 if [ -f "$S/.env" ]; then
   [ "$(stat -c %a "$S/.env")" = "600" ] || err ".env is not mode 600"
+  cp "$S/.env" "$WORK/env1"
   # Re-runs are how people add services. Picking needs a terminal, so
   # mark services installed in .env instead: setup.sh then generates
   # their secrets and ports as on a real add. (--tui covers the picker.)
@@ -324,11 +325,17 @@ if [ -f "$S/.env" ]; then
   sed -i "s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$ALL/" "$S/.env"
   # A version override is how users roll back; a re-run must keep it.
   echo "SONARR_VERSION=0.0.0-check" >> "$S/.env"
+  sed -i 's/^UPDATE_MODE=.*/UPDATE_MODE=off/' "$S/.env"
   run_setup yes3 --yes; rc=$?
   step "re-run, + every other service" yes3 "$rc"
   if ! grep -qx 'SONARR_VERSION=0.0.0-check' "$S/.env"; then err "re-run dropped a version override from .env"
   elif ! grep -q 'held at a version override: SONARR_VERSION' "$WORK/yes3.log"; then err "re-run did not warn about the version override"
   else ok "re-run kept the version override and said so"; fi
+  # Asked once (T-008): --yes on a fresh install writes the default,
+  # a re-run keeps whatever is there.
+  if ! grep -qx 'UPDATE_MODE=notify' "$WORK/env1"; then err "first --yes did not write UPDATE_MODE=notify"
+  elif ! grep -qx 'UPDATE_MODE=off' "$S/.env"; then err "re-run did not keep UPDATE_MODE=off"
+  else ok "UPDATE_MODE: notify by default, kept by a re-run"; fi
   # A re-run must keep every existing secret (a database reads its
   # password once). Lines from before that are gone were changed.
   if [ ! -s "$WORK/secrets1" ]; then err "re-run test: no secrets were generated to compare"
