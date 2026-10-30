@@ -113,7 +113,7 @@ services:
   # LazyLibrarian is actively maintained and covers ebooks + audiobooks.
   # The calibre mod gives it format conversion.
   lazylibrarian:
-    image: lscr.io/linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION:-8c70ea4d-ls386}
+    image: lscr.io/linuxserver/lazylibrarian:${LAZYLIBRARIAN_VERSION:-d7e0cf3d-ls386}
     container_name: ${STACK_PREFIX}lazylibrarian
     profiles: ["lazylibrarian"]
     restart: unless-stopped
