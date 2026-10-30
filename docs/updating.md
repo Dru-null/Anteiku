@@ -187,4 +187,6 @@ to it means checking the bootstrap first.
 Older releases shipped Diun, which reported new upstream images. With
 every version pinned and tested in releases, it either stayed quiet or
 pointed at versions nobody had tested together, so it was removed. If
-you have it, the release that removed it says how to take it out.
+you have it, the next `./setup.sh` run prints the `docker rm -f`
+command for its container and where its data is. Nothing is deleted
+for you.
