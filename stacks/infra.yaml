@@ -1,0 +1,91 @@
+# ============================================================
+#  infra — reverse proxy, network-wide DNS/adblock, update alerts
+# ============================================================
+#  ALL OPTIONAL. Every service you have installed so far already works
+#  on its own port. This stack replaces "http://192.168.1.50:8989" with
+#  "http://sonarr.home" across every device on your network.
+#
+#  Recommended, but add it once the basics work — not on day one.
+# ============================================================
+services:
+
+  # --- Nginx Proxy Manager: reverse proxy with a web UI ---------------
+  # Maps hostnames to containers, and handles HTTPS certificates.
+  #
+  # PORTS 80 AND 443 MATTER. Let's Encrypt validates by connecting to
+  # port 80 on your public address. If setup.sh had to move them because
+  # something else held them, proxying still works on your LAN but
+  # automatic certificates will not. Free the real ports if you want
+  # HTTPS from a public authority.
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: ${STACK_PREFIX}nginx-proxy-manager
+    profiles: ["nginx-proxy-manager"]
+    restart: unless-stopped
+    ports:
+      - "${PORT_NGINX_PROXY_MANAGER:-80}:80"
+      - "${PORT_NPM_HTTPS:-443}:443"
+      - "${PORT_NPM_ADMIN:-81}:81"     # admin UI
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/npm/data:/data
+      - ${APPDATA}/npm/letsencrypt:/etc/letsencrypt
+
+  # --- Pi-hole: DNS server and network-wide ad blocking ---------------
+  # Web UI is on 8053, not 80, because the reverse proxy wants port 80.
+  #
+  # PORT 53 MUST BE FREE FIRST. On most Ubuntu and Debian systems
+  # systemd-resolved is already listening there and Pi-hole cannot
+  # start. doctor.sh detects this; infra.md has the fix. It is two
+  # commands, but do read why before running them.
+  pihole:
+    image: pihole/pihole:latest
+    container_name: ${STACK_PREFIX}pihole
+    profiles: ["pihole"]
+    restart: unless-stopped
+    ports:
+      - "${PORT_PIHOLE:-53}:53/tcp"
+      - "${PORT_PIHOLE:-53}:53/udp"
+      - "${PORT_PIHOLE_WEB:-8053}:80/tcp"
+    environment:
+      TZ: ${TZ}
+      FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD:-changeme}
+      # Upstream resolvers, asked whenever an answer is not cached or
+      # blocked. Defaults are Cloudflare and Quad9; your ISP's or any
+      # other pair works just as well.
+      FTLCONF_dns_upstreams: ${PIHOLE_DNS_1:-1.1.1.1};${PIHOLE_DNS_2:-9.9.9.9}
+      FTLCONF_dns_listeningMode: all
+    volumes:
+      - ${APPDATA}/pihole/etc-pihole:/etc/pihole
+    cap_add:
+      - SYS_NICE
+
+  # --- Diun: tells you when an image has an update --------------------
+  # It does NOT apply updates. That is the point: you get a notification
+  # and update when you choose to, having read the release notes.
+  #
+  # Auto-updating a homelab unattended is how you wake up to a service
+  # that changed its config format overnight. Pinning plus a nudge beats
+  # surprise.
+  #
+  # Notifications are off until you configure one - see infra.md.
+  diun:
+    image: crazymax/diun:latest
+    container_name: ${STACK_PREFIX}diun
+    profiles: ["diun"]
+    restart: unless-stopped
+    command: serve
+    environment:
+      TZ: ${TZ}
+      LOG_LEVEL: info
+      DIUN_WATCH_SCHEDULE: "0 8 * * *"
+      DIUN_WATCH_FIRSTCHECKNOTIF: "false"
+      DIUN_PROVIDERS_DOCKER: "true"
+      DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT: "true"
+    volumes:
+      - ${APPDATA}/diun:/data
+      # Read-only socket: Diun needs to list your containers and their
+      # images. Read-only matters - the docker socket is root on the
+      # host, so never mount it writable unless a service truly needs it.
+      - /var/run/docker.sock:/var/run/docker.sock:ro

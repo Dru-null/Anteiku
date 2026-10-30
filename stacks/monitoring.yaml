@@ -1,0 +1,39 @@
+# ============================================================
+#  monitoring — is everything actually working?
+# ============================================================
+#  The honest framing: a dashboard full of green ticks means "the
+#  things I am watching are up". It says nothing about the things you
+#  forgot to add. That gap is the whole reason setup.sh can generate
+#  monitors for every service you installed.
+# ============================================================
+services:
+
+  # --- Uptime Kuma: availability checks and phone alerts --------------
+  # Mounts the docker socket read-only so it can also watch containers
+  # that serve no HTTP at all.
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: ${STACK_PREFIX}uptime-kuma
+    profiles: ["uptime-kuma"]
+    restart: unless-stopped
+    ports: ["${PORT_UPTIME_KUMA:-3001}:3001"]
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/uptime-kuma:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # --- Dozzle: container logs in a browser ----------------------------
+  # No configuration, no database, no setup. Saves you SSH-ing in to run
+  # `docker logs` every time something misbehaves.
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: ${STACK_PREFIX}dozzle
+    profiles: ["dozzle"]
+    restart: unless-stopped
+    ports: ["${PORT_DOZZLE:-8888}:8080"]
+    environment:
+      TZ: ${TZ}
+      DOZZLE_NO_ANALYTICS: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro

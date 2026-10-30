@@ -1,0 +1,69 @@
+# ============================================================
+#  extras — notifications and passwords
+# ============================================================
+services:
+
+  # --- ntfy: push notifications to your phone --------------------------
+  # The missing piece that turns monitoring into alerting. Uptime Kuma,
+  # backup.sh and the *arrs can all push here, and ntfy pushes to your
+  # phone. Free, self-hosted, no account with anyone.
+  #
+  # Locked down by default: NTFY_AUTH_DEFAULT_ACCESS=deny-all means
+  # nobody can read or publish until you create a user. Without that,
+  # anyone who can reach this port can read every notification you send
+  # - which will include things like "backup failed on <host>".
+  # scripts/ntfy-setup.sh creates the user and token for you.
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ${STACK_PREFIX}ntfy
+    profiles: ["ntfy"]
+    restart: unless-stopped
+    command: serve
+    ports: ["${PORT_NTFY:-8095}:80"]
+    environment:
+      TZ: ${TZ}
+      NTFY_BASE_URL: ${NTFY_BASE_URL:-http://localhost:8095}
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_ENABLE_LOGIN: "true"
+      NTFY_ATTACHMENT_CACHE_DIR: /var/cache/ntfy/attachments
+      # Set to true only if you put ntfy behind the reverse proxy.
+      NTFY_BEHIND_PROXY: "${NTFY_BEHIND_PROXY:-false}"
+    volumes:
+      - ${APPDATA}/ntfy/cache:/var/cache/ntfy
+      - ${APPDATA}/ntfy/lib:/var/lib/ntfy
+
+  # --- Vaultwarden: your own password manager ---------------------------
+  # Bitwarden-compatible, so the official Bitwarden apps and browser
+  # extensions work against it.
+  #
+  # READ stacks/extras.md BEFORE RELYING ON THIS. Two things are
+  # different from every other service here:
+  #
+  #   1. The browser extensions and mobile apps REQUIRE HTTPS. Plain
+  #      http://vault.home works in a browser tab and will NOT work in
+  #      the extension. There is a straightforward answer (Tailscale
+  #      Serve) and it is in the docs.
+  #
+  #   2. This holds every password you own. Losing it is worse than
+  #      losing your media library. Back it up, and test the restore.
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: ${STACK_PREFIX}vaultwarden
+    profiles: ["vaultwarden"]
+    restart: unless-stopped
+    ports: ["${PORT_VAULTWARDEN:-8222}:80"]
+    environment:
+      TZ: ${TZ}
+      # Must match the URL you actually reach it on, including https://
+      # if you use it. Wrong value breaks client connections and
+      # attachment links.
+      DOMAIN: ${VAULTWARDEN_DOMAIN:-http://localhost:8222}
+      # TURN THIS OFF once your accounts exist. While it is true,
+      # anyone who can reach the page can create an account on your
+      # password manager. setup.sh reminds you.
+      SIGNUPS_ALLOWED: "${VAULTWARDEN_SIGNUPS:-true}"
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN:-unset}
+    volumes:
+      - ${APPDATA}/vaultwarden:/data

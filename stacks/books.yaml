@@ -1,0 +1,28 @@
+# ============================================================
+#  books — Calibre-Web-Automated: ebook library manager
+# ============================================================
+#  Drop an epub or pdf into the ingest folder and it is imported,
+#  converted if needed, and added to a proper Calibre library. Also
+#  does Send-to-Kindle and serves an OPDS feed for reader apps.
+#
+#  Shares ${MEDIA_ROOT}/books with Kavita (reading) and LazyLibrarian
+#  (acquisition). Several writers, one directory - see books.md.
+# ============================================================
+services:
+
+  calibre-web:
+    image: crocodilestick/calibre-web-automated:latest
+    container_name: ${STACK_PREFIX}calibre-web
+    profiles: ["calibre-web"]
+    restart: unless-stopped
+    ports: ["${PORT_CALIBRE_WEB:-8083}:8083"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/calibre-web/config:/config
+      # The drop zone. Files here are CONSUMED - moved out once imported.
+      # Never put your only copy of a book in it.
+      - ${MEDIA_ROOT}/books/ingest:/cwa-book-ingest
+      - ${MEDIA_ROOT}/books:/calibre-library

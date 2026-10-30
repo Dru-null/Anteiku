@@ -1,0 +1,39 @@
+# ============================================================
+#  hw/gpu-nvidia — NVENC
+#  STATUS: NOT maintainer-tested. Written from NVIDIA's documented
+#  behaviour. Expect to adjust. Reports welcome.
+# ============================================================
+#  REQUIRED ON THE HOST FIRST - this will not work without it:
+#
+#    1. The proprietary NVIDIA driver. The open-source 'nouveau' driver
+#       has NO working NVENC encoder. Check which you are on:
+#         lspci -k | grep -A3 -i nvidia | grep 'Kernel driver'
+#       If it says nouveau, hardware encoding is not available to you
+#       until you install the proprietary driver.
+#
+#    2. nvidia-container-toolkit, so Docker can pass the GPU through:
+#         https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/
+#       Verify with:
+#         docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+#
+#  Then in Jellyfin:
+#    Dashboard > Playback > Transcoding
+#    Hardware acceleration: Nvidia NVENC
+#
+#  WORTH KNOWING: consumer GeForce cards cap how many simultaneous
+#  encode sessions the driver will allow. For one or two streams this
+#  never matters. And if you also have an Intel iGPU, it is usually the
+#  better choice here despite being the less impressive chip.
+# ============================================================
+services:
+  jellyfin:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility

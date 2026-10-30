@@ -1,0 +1,188 @@
+# ============================================================
+#  arr — library management, download client, request UI
+# ============================================================
+#  WHAT THIS DOES NOT DO: this stack ships with NO indexers and no
+#  sources of any kind. Prowlarr starts empty. What you point it at is
+#  your decision and your responsibility. See "Scope and legality" in
+#  the README.
+# ============================================================
+#  PATH CONTRACT — do not break this:
+#    host ${MEDIA_ROOT}  ->  container /data
+#  Every service here sees the SAME /data. That is what makes hardlinks
+#  work, so importing a finished download is instant and does not use
+#  disk twice. Split these into separate mounts and you lose both.
+#    Root folders inside the apps:  /data/movies  /data/series
+#                                   /data/music   /data/books
+#    Download client writes to:     /data/torrents
+# ============================================================
+#  Each service carries a compose PROFILE named after it, so only the
+#  ones you chose in setup.sh start. COMPOSE_PROFILES in .env is the list.
+#  Run one ad hoc without editing anything:
+#    docker compose --profile bazarr up -d bazarr
+#
+#  ${STACK_PREFIX} is empty for a normal install. It exists so a second
+#  copy can run beside an existing stack without name collisions.
+# ============================================================
+services:
+
+  # --- Indexer manager -----------------------------------------------
+  # Central place to manage indexers; syncs them to the *arrs below.
+  # Ships empty. You add your own.
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: ${STACK_PREFIX}prowlarr
+    profiles: ["prowlarr"]
+    restart: unless-stopped
+    ports: ["${PORT_PROWLARR:-9696}:9696"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/prowlarr:/config
+
+  # --- CAPTCHA solver -------------------------------------------------
+  # Optional. Prowlarr points at http://byparr:8191 if you use it.
+  #
+  # init: true is NOT optional. Each solve leaves chromium children
+  # behind; without an init process to reap them they accumulate as
+  # zombies until the host PID table is exhausted. They are invisible in
+  # CPU, memory and healthchecks — the only symptom is the whole host
+  # failing to fork. Check the PID column, not the CPU column.
+  byparr:
+    image: ghcr.io/thephaseless/byparr:latest
+    container_name: ${STACK_PREFIX}byparr
+    profiles: ["byparr"]
+    restart: unless-stopped
+    init: true
+    ports: ["${PORT_BYPARR:-8191}:8191"]
+    environment:
+      LOG_LEVEL: info
+      TZ: ${TZ}
+
+  # --- Download client ------------------------------------------------
+  # UMASK=002 gives group write on finished files so the *arrs can
+  # hardlink and move them. Keep it.
+  #
+  # SET A RATIO LIMIT once you are up (Options > BitTorrent > Seeding
+  # Limits). With no limit, nothing ever retires a finished torrent and
+  # the download dir grows until the disk is full.
+  qbittorrent:
+    image: ghcr.io/hotio/qbittorrent:latest
+    container_name: ${STACK_PREFIX}qbittorrent
+    profiles: ["qbittorrent"]
+    restart: unless-stopped
+    ports: ["${PORT_QBITTORRENT:-8181}:8080"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      UMASK: ${UMASK}
+    volumes:
+      - ${APPDATA}/qbittorrent:/config
+      - ${MEDIA_ROOT}:/data
+
+  # --- TV ---------------------------------------------------------------
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: ${STACK_PREFIX}sonarr
+    profiles: ["sonarr"]
+    restart: unless-stopped
+    ports: ["${PORT_SONARR:-8989}:8989"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/sonarr:/config
+      - ${MEDIA_ROOT}:/data
+
+  # --- Movies -----------------------------------------------------------
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: ${STACK_PREFIX}radarr
+    profiles: ["radarr"]
+    restart: unless-stopped
+    ports: ["${PORT_RADARR:-7878}:7878"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/radarr:/config
+      - ${MEDIA_ROOT}:/data
+
+  # --- Music ------------------------------------------------------------
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: ${STACK_PREFIX}lidarr
+    profiles: ["lidarr"]
+    restart: unless-stopped
+    ports: ["${PORT_LIDARR:-8686}:8686"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/lidarr:/config
+      - ${MEDIA_ROOT}:/data
+
+  # --- Books and audiobooks ---------------------------------------------
+  # Readarr was retired in early 2026 and its metadata service is dead.
+  # LazyLibrarian is actively maintained and covers ebooks + audiobooks.
+  # The calibre mod gives it format conversion.
+  lazylibrarian:
+    image: lscr.io/linuxserver/lazylibrarian:latest
+    container_name: ${STACK_PREFIX}lazylibrarian
+    profiles: ["lazylibrarian"]
+    restart: unless-stopped
+    ports: ["${PORT_LAZYLIBRARIAN:-5299}:5299"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      DOCKER_MODS: linuxserver/mods:universal-calibre
+    volumes:
+      - ${APPDATA}/lazylibrarian:/config
+      - ${MEDIA_ROOT}:/data
+
+  # --- Subtitles --------------------------------------------------------
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: ${STACK_PREFIX}bazarr
+    profiles: ["bazarr"]
+    restart: unless-stopped
+    ports: ["${PORT_BAZARR:-6767}:6767"]
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/bazarr:/config
+      - ${MEDIA_ROOT}:/data
+
+  # --- Request UI: Seerr --------------------------------------------------
+  # A friendly front door: household members request, the *arrs act.
+  #
+  # Seerr is the merged successor to Jellyseerr and Overseerr, both
+  # discontinued in February 2026. Old guides name them; this is the one
+  # still maintained. Migrating from Jellyseerr? Point the volume below at
+  # your old config directory - Seerr converts it on first start. Back it
+  # up first.
+  #
+  # Runs as a FIXED uid 1000 and ignores PUID/PGID. If your user is not
+  # 1000, its config directory must still be owned by 1000:1000 -
+  # setup.sh warns when that applies.
+  seerr:
+    image: ghcr.io/seerr-team/seerr:latest
+    container_name: ${STACK_PREFIX}seerr
+    profiles: ["seerr"]
+    restart: unless-stopped
+    # Required: the image ships no init process of its own.
+    init: true
+    ports: ["${PORT_SEERR:-5055}:5055"]
+    environment:
+      LOG_LEVEL: info
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/seerr:/app/config

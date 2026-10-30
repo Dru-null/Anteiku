@@ -1,0 +1,17 @@
+# ============================================================
+#  hw/cpu-only — no hardware acceleration
+# ============================================================
+#  Works everywhere. Selected when no usable GPU was found, or when
+#  you chose CPU deliberately.
+#
+#  This is not a consolation prize. If your clients can play your files
+#  as they are (direct play), nothing ever transcodes and a GPU would
+#  sit idle. Transcoding only happens when the client cannot handle the
+#  codec, container or bitrate.
+#
+#  An i5 of roughly 2019 vintage handles one 1080p transcode comfortably
+#  and will struggle with 4K. If you hit that wall, the better first fix
+#  is usually storing files your clients can direct play, not more CPU.
+# ============================================================
+services:
+  jellyfin: {}

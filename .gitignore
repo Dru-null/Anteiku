@@ -1,0 +1,21 @@
+# Plaintext secrets — never commit. .env.example is the only exception.
+.env*
+!.env.example
+
+# Runtime state. Container configs and media never belong in git.
+appdata/
+media/
+photos/
+testdata/
+*.bak
+*.log
+
+# Generated per-machine by setup.sh.
+ports.md
+
+# Local backup logs.
+backup-logs/
+
+# Python bytecode.
+__pycache__/
+*.pyc

@@ -1,0 +1,41 @@
+# ============================================================
+#  hw/gpu-intel — Intel Quick Sync (VAAPI / QSV)
+#  STATUS: tested on real hardware (UHD 630, i915).
+# ============================================================
+#  The best option for this job on most machines. Low power, good
+#  quality per bitrate, no extra host packages - the kernel driver is
+#  already there.
+#
+#  Enable it in Jellyfin afterwards:
+#    Dashboard > Playback > Transcoding
+#    Hardware acceleration: Video Acceleration API (VAAPI)
+#    VA-API Device: /dev/dri/intel-render
+#
+#  TWO THINGS THAT SILENTLY DISABLE IT
+#
+#  1. The device name moves. /dev/dri/renderD128 is NOT stable on a
+#     machine with two GPUs - renderD128 and renderD129 can swap which
+#     card they point at across a reboot. Jellyfin then talks to the
+#     wrong device and transcoding dies with an unhelpful ffmpeg error
+#     long after you set it up. So we pass the by-path symlink, which is
+#     tied to the PCI slot, and expose it inside the container under the
+#     fixed name /dev/dri/intel-render. Point Jellyfin at that name and
+#     it keeps working forever.
+#
+#  2. The render group id differs per machine. The device is owned by
+#     group 'render' (or 'video'), whose gid is 991 here, 104 elsewhere.
+#     A container outside that group opens the device read-only, and
+#     Jellyfin quietly falls back to CPU with nothing in the log. Both
+#     values are detected by setup.sh and written to .env.
+# ============================================================
+services:
+  jellyfin:
+    devices:
+      # The whole DRI directory, so ffmpeg can enumerate devices.
+      - /dev/dri:/dev/dri
+      # The stable, slot-pinned alias. This is the one to configure.
+      - source: ${INTEL_RENDER_PATH:-/dev/dri/renderD128}
+        target: /dev/dri/intel-render
+        permissions: rwm
+    group_add:
+      - "${RENDER_GID:-44}"

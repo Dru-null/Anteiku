@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# ============================================================
+#  kuma-bootstrap.sh — one Uptime Kuma monitor per installed service
+#
+#  A wall of green ticks only tells you the things you remembered to
+#  add are up. Services you forgot are invisible, and "all green" reads
+#  as "all fine". Generating monitors from what is actually installed
+#  closes that gap.
+#
+#    ./scripts/kuma-bootstrap.sh --dry-run   show the plan, change nothing
+#    ./scripts/kuma-bootstrap.sh             create them
+#
+#  Re-runnable: anything already present by name is skipped, so run it
+#  again whenever you add services.
+# ============================================================
+set -uo pipefail
+cd "$(dirname "$0")/.."
+. lib/detect.sh
+
+DRY_RUN=0
+for a in "$@"; do case "$a" in
+  --dry-run) DRY_RUN=1 ;;
+  -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+  *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
+esac; done
+
+ENV_FILE="${ENV_FILE:-.env}"
+[ -r "$ENV_FILE" ] || { err "No $ENV_FILE — run ./setup.sh first."; exit 1; }
+set -a; . "./$ENV_FILE"; set +a
+
+case ",${COMPOSE_PROFILES:-}," in
+  *,uptime-kuma,*) ;;
+  *) err "uptime-kuma is not installed. Re-run ./setup.sh and select it."; exit 1 ;;
+esac
+
+PLAN="$(COMPOSE_PROFILES="$COMPOSE_PROFILES" STACK_PREFIX="${STACK_PREFIX:-}" \
+        python3 -I scripts/kuma-monitors.py plan)"
+
+h1 "Monitors"
+echo "$PLAN" | python3 -I scripts/kuma-monitors.py render
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo; printf '%s  DRY RUN — nothing created.%s\n' "$C_WARN" "$C_RST"; exit 0
+fi
+
+: "${KUMA_USER:?KUMA_USER missing from .env — re-run ./setup.sh}"
+: "${KUMA_PASSWORD:?KUMA_PASSWORD missing from .env — re-run ./setup.sh}"
+
+h1 "Applying"
+note "Kuma has no REST API, so this talks its socket.io protocol from a"
+note "throwaway container on your compose network. Nothing is installed"
+note "on your host."
+echo
+
+echo "$PLAN" | docker run --rm -i --network "${DOCKER_NETWORK:-anteiku}" \
+  -v "$PWD/scripts:/scripts:ro" \
+  -e KUMA_URL="http://${STACK_PREFIX}uptime-kuma:3001" \
+  -e KUMA_USER="$KUMA_USER" -e KUMA_PASSWORD="$KUMA_PASSWORD" \
+  python:3.12-alpine sh -c \
+    'pip install -q uptime-kuma-api >/dev/null 2>&1; exec python -I /scripts/kuma-apply.py'
+RC=$?
+
+echo
+[ "${RC:-0}" -ne 0 ] && warn "some monitors failed — see above"
+h1 "Next"
+echo "  Open Uptime Kuma (see ports.md) and log in with KUMA_USER from .env."
+echo
+echo "  Then do the one thing this cannot do for you: add a notification"
+echo "  channel (Settings > Notifications) and attach it to the monitors."
+echo "  A dashboard you have to remember to look at is not monitoring."
+echo

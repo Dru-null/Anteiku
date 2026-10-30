@@ -1,0 +1,30 @@
+# ============================================================
+#  hw/gpu-amd — AMD VAAPI
+#  STATUS: NOT maintainer-tested. Written from documented behaviour.
+# ============================================================
+#  Works through the same VAAPI interface as Intel, via amdgpu. No
+#  extra host packages on a current kernel, though older cards may want
+#  the mesa va drivers installed.
+#
+#  In Jellyfin:
+#    Dashboard > Playback > Transcoding
+#    Hardware acceleration: Video Acceleration API (VAAPI)
+#    VA-API Device: /dev/dri/amd-render
+#
+#  Honest comparison: AMD's encoder trails Intel Quick Sync and NVIDIA
+#  NVENC on quality at a given bitrate, and driver behaviour varies more
+#  across card generations. It works; it is the fiddliest of the three.
+#
+#  The same two traps as Intel apply - the device number is not stable
+#  across reboots, and the render group id differs per machine. Both are
+#  detected by setup.sh.
+# ============================================================
+services:
+  jellyfin:
+    devices:
+      - /dev/dri:/dev/dri
+      - source: ${AMD_RENDER_PATH:-/dev/dri/renderD128}
+        target: /dev/dri/amd-render
+        permissions: rwm
+    group_add:
+      - "${RENDER_GID:-44}"

@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# ============================================================
+#  backup.sh — back up the things that hurt to lose.
+#
+#  Philosophy: your media library is large and re-obtainable. Your
+#  CONFIGS, SECRETS and anything irreplaceable (photos, documents) are
+#  small and gone forever. This backs up the second kind.
+#
+#    ./scripts/backup.sh --dry-run     show the plan, write nothing
+#    ./scripts/backup.sh               run it
+#    ./scripts/backup.sh /mnt/usb      back up somewhere else
+#
+#  Exits non-zero if anything failed, so cron can alert on it.
+# ============================================================
+set -uo pipefail
+cd "$(dirname "$0")/.."
+. lib/detect.sh
+
+DRY_RUN=0; DEST=""
+for a in "$@"; do case "$a" in
+  --dry-run) DRY_RUN=1 ;;
+  -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+  -*) echo "unknown option: $a" >&2; exit 2 ;;
+  *) DEST="$a" ;;
+esac; done
+
+ENV_FILE="${ENV_FILE:-.env}"
+[ -r "$ENV_FILE" ] || { echo "No $ENV_FILE — run ./setup.sh first." >&2; exit 1; }
+set -a; . "./$ENV_FILE"; set +a
+
+DEST="${DEST:-${BACKUP_DEST:-}}"
+if [ -z "$DEST" ]; then
+  echo "No destination. Pass one, or set BACKUP_DEST in .env:" >&2
+  echo "  ./scripts/backup.sh /mnt/backup-drive" >&2
+  exit 1
+fi
+
+STAMP="$(date +%F)"
+OUT="${DEST}/${STAMP}"
+RETAIN_DAYS="${BACKUP_RETAIN_DAYS:-30}"
+FAILED=0
+fail() { printf '  %s%s FAILED%s  %s\n' "$C_ERR" "$S_ERR" "$C_RST" "$1"; FAILED=1; }
+wrn()  { warn "$1"; }
+good() { ok "$1"; }
+
+# ============================================================
+#  Where is it going? The most important question here.
+# ============================================================
+h1 "Destination"
+kv "Target" "$OUT"
+SRC_FS="$(fs_of "$APPDATA" 2>/dev/null)"
+mkdir -p "$DEST" 2>/dev/null || true
+DST_FS="$(fs_of "$DEST" 2>/dev/null)"
+kv "Free there" "$(free_gb "$DEST" 2>/dev/null) GB"
+
+if [ -n "$SRC_FS" ] && [ "$SRC_FS" = "$DST_FS" ]; then
+  wrn "Backup destination is on the SAME filesystem as your data."
+  note "This protects you from: deleting a file, a bad config, a failed"
+  note "upgrade. It does NOT protect you from the thing most likely to"
+  note "actually happen — that disk dying. When it goes, it takes your"
+  note "only copy with it."
+  note ""
+  note "Treat this as step one, not as done. A cheap USB disk is a real"
+  note "improvement; somewhere outside the building is the real answer."
+else
+  good "destination is on a different filesystem from your data"
+fi
+
+# ============================================================
+#  Databases: dump them, never tar them live.
+#    service|container|type|user|dbname
+# ============================================================
+DATABASES="
+immich|immich-db|pg|${IMMICH_DB_USER:-immich}|${IMMICH_DB_NAME:-immich}
+"
+
+# ============================================================
+#  Caches and regenerable data — excluded on purpose.
+#  These rebuild themselves and dominate the archive size.
+# ============================================================
+EXCLUDES=(
+  --exclude=jellyfin/config/data/metadata     # re-fetchable artwork, can be GBs
+  --exclude=jellyfin/config/cache
+  --exclude=jellyfin/config/log
+  --exclude=jellyfin/transcode                # scratch space
+  --exclude=immich/model-cache                # re-downloadable ML models
+  --exclude=calibre-web/config/processed_books # re-convertible copies, can be GBs
+  --exclude=calibre-web/config/thumbnails
+  --exclude='*/logs/*.log'
+  --exclude='*/log/*.log'
+)
+
+h1 "Plan"
+SERVICES="$(echo "${COMPOSE_PROFILES:-}" | tr ',' ' ')"
+HAVE=(); MISSING=()
+for s in $SERVICES; do
+  if [ -d "${APPDATA}/${s}" ]; then HAVE+=("$s"); else MISSING+=("$s"); fi
+done
+# services whose config lives under a different directory name
+[ -d "${APPDATA}/npm" ] && HAVE+=("npm")
+
+echo "  config dirs:   ${#HAVE[@]} of $(echo $SERVICES | wc -w) installed services"
+[ "${#MISSING[@]}" -gt 0 ] && note "no appdata yet (normal if never started): ${MISSING[*]}"
+DUMPS=0
+for row in $DATABASES; do
+  svc="${row%%|*}"
+  case " $SERVICES " in *" $svc "*) DUMPS=$((DUMPS+1)) ;; esac
+done
+echo "  database dumps: $DUMPS"
+echo "  also:           .env, compose files, your stack definition"
+echo "  NOT backed up:  ${MEDIA_ROOT} (large and re-obtainable)"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo
+  printf '%s  DRY RUN — nothing written.%s\n' "$C_WARN" "$C_RST"
+  exit 0
+fi
+
+mkdir -p "$OUT" || { echo "cannot create $OUT" >&2; exit 1; }
+
+# ============================================================
+#  Root-owned files. Use `sudo -n` so cron can never hang on a
+#  password prompt. Probe with a real command: a command-scoped
+#  sudoers entry refuses `sudo -n true` even when tar is allowed.
+# ============================================================
+SUDO=()
+if sudo -n /usr/bin/tar --version >/dev/null 2>&1; then
+  SUDO=(sudo -n); good "passwordless sudo available (root-owned files included)"
+else
+  wrn "no passwordless sudo — root-owned config files will be SKIPPED."
+  note "Some services write config as root. Without sudo those files are"
+  note "silently missing from the archive, and you find out at restore"
+  note "time. To fix, allow tar without a password:"
+  note "  echo \"\$USER ALL=(root) NOPASSWD: /usr/bin/tar\" | sudo tee /etc/sudoers.d/backup"
+fi
+
+# ---------------------------------------------------------- databases
+h1 "Databases"
+if [ "$DUMPS" -eq 0 ]; then
+  good "none installed"
+else
+  for row in $DATABASES; do
+    IFS='|' read -r svc cont typ user db <<< "$row"
+    case " $SERVICES " in *" $svc "*) ;; *) continue ;; esac
+    c="${STACK_PREFIX}${cont}"
+    if ! docker ps --format '{{.Names}}' | grep -qx "$c"; then
+      fail "$svc: container $c is not running — cannot dump"
+      continue
+    fi
+    f="${svc}-db.sql.gz"
+    if ! docker exec "$c" pg_dump -U "$user" "$db" 2>/dev/null | gzip > "$OUT/$f"; then
+      fail "$svc: pg_dump failed"
+      continue
+    fi
+    # Judge a dump by whether it contains schema, not by byte size - a
+    # 400-byte dump of an empty database is correct; a 400-byte dump of
+    # a full one is a disaster, and both pass a size check.
+    n="$(gzip -dc "$OUT/$f" 2>/dev/null | grep -c '^CREATE TABLE' || true)"
+    if [ "${n:-0}" -eq 0 ]; then
+      wrn "$svc: dump has no tables — empty database, or a broken dump"
+    else
+      good "$svc: $n tables -> $f"
+    fi
+  done
+fi
+
+# ------------------------------------------------------------ configs
+h1 "Configs"
+if [ "${#HAVE[@]}" -eq 0 ]; then
+  wrn "no appdata directories found — nothing to archive"
+else
+  if "${SUDO[@]}" tar czf "$OUT/appdata-configs.tar.gz" \
+       -C "$APPDATA" "${EXCLUDES[@]}" "${HAVE[@]}" 2>/dev/null; then
+    [ "${#SUDO[@]}" -gt 0 ] && sudo -n /usr/bin/chown "$(id -u):$(id -g)" "$OUT/appdata-configs.tar.gz" 2>/dev/null
+    good "appdata-configs.tar.gz ($(du -h "$OUT/appdata-configs.tar.gz" | cut -f1)) — ${#HAVE[@]} services"
+  else
+    fail "could not archive configs"
+  fi
+fi
+
+# ----------------------------------------------------------- the stack
+h1 "Stack definition"
+# Includes .env, which holds every secret. Hence mode 600.
+if tar czf "$OUT/stack.tar.gz" --exclude='./appdata' --exclude='./testdata' \
+     --exclude='./.git' -C . . 2>/dev/null; then
+  chmod 600 "$OUT/stack.tar.gz"
+  good "stack.tar.gz ($(du -h "$OUT/stack.tar.gz" | cut -f1)) — includes .env, mode 600"
+else
+  fail "could not archive the stack"
+fi
+
+# ------------------------------------------------------------ retention
+h1 "Retention"
+OLD="$(find "$DEST" -maxdepth 1 -type d -name '20*-*-*' -mtime "+${RETAIN_DAYS}" 2>/dev/null | wc -l)"
+if [ "${OLD:-0}" -gt 0 ]; then
+  find "$DEST" -maxdepth 1 -type d -name '20*-*-*' -mtime "+${RETAIN_DAYS}" -exec rm -rf {} + 2>/dev/null
+  good "removed $OLD backup(s) older than ${RETAIN_DAYS} days"
+else
+  good "nothing older than ${RETAIN_DAYS} days"
+fi
+
+# -------------------------------------------------------------- report
+h1 "Result"
+ls -lh "$OUT" 2>/dev/null | tail -n +2 | awk '{printf "  %-28s %s\n", $9, $5}'
+echo
+TOTAL="$(du -sh "$OUT" 2>/dev/null | cut -f1)"
+if [ "$FAILED" -eq 0 ]; then
+  printf '  %sBackup complete%s — %s in %s\n' "$C_OK" "$C_RST" "$TOTAL" "$OUT"
+  echo
+  note "Untested backups are not backups. See docs/backups.md for how to"
+  note "verify this one — it takes five minutes and is the only way to"
+  note "know it works."
+else
+  printf '  %sBackup finished WITH FAILURES%s — read the lines above.\n' "$C_ERR" "$C_RST"
+fi
+exit "$FAILED"

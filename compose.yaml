@@ -1,0 +1,33 @@
+# ============================================================
+#  anteiku — pick your stacks, one command
+#    bring up:    docker compose up -d
+#    bring down:  docker compose down
+#    what's up:   docker compose ps
+# ============================================================
+#  Stacks are included by ./setup.sh based on what you chose.
+#  You can also just uncomment the ones you want.
+# ============================================================
+
+# project_directory pins relative paths (APPDATA, MEDIA_ROOT) to THIS
+# directory. Without it, a relative path inside an included file resolves
+# against stacks/ instead, and your data silently lands in stacks/ —
+# the container works, but the files are not where you think they are.
+include:
+  - path: stacks/arr.yaml
+    project_directory: .
+  - path: stacks/media.yaml
+    project_directory: .
+  - path: stacks/infra.yaml
+    project_directory: .
+  - path: stacks/monitoring.yaml
+    project_directory: .
+  - path: stacks/photos.yaml
+    project_directory: .
+  - path: stacks/extras.yaml
+    project_directory: .
+  - path: stacks/books.yaml
+    project_directory: .
+
+networks:
+  default:
+    name: ${DOCKER_NETWORK:-anteiku}

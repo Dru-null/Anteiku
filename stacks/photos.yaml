@@ -1,0 +1,114 @@
+# ============================================================
+#  photos — Immich: photo and video backup for your phone
+# ============================================================
+#  This is the one most people come for, and the one holding the data
+#  you genuinely cannot replace. Two things follow from that:
+#
+#   1. ${PHOTOS_LOCATION} is SEPARATE from ${MEDIA_ROOT} on purpose.
+#      Your film library is re-obtainable; your photos are not. Keeping
+#      them apart means you can back one up and not the other, and it
+#      stops a media-disk mishap taking your photos with it.
+#
+#   2. Read docs/backups.md before you delete anything off your phone.
+#      "It is on the server" is not a backup. It is one copy on one
+#      second-hand disk.
+#
+#  IMAGE PINNING: Immich ties its Postgres image to the server version
+#  and the tag naming changes. Before a major upgrade, check upstream:
+#    curl -s https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml | grep image:
+# ============================================================
+#  Every variable below has a default. A compose file is parsed in
+#  full even for services whose profile is inactive, so a bare
+#  ${VAR} with nothing set makes the WHOLE stack fail to start -
+#  including services that have nothing to do with Immich.
+# ============================================================
+services:
+
+  # --- Immich server ---------------------------------------------------
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: ${STACK_PREFIX}immich-server
+    profiles: ["immich"]
+    restart: unless-stopped
+    ports: ["${PORT_IMMICH:-2283}:2283"]
+    depends_on:
+      - immich-redis
+      - immich-db
+    environment:
+      TZ: ${TZ}
+      DB_HOSTNAME: ${STACK_PREFIX}immich-db
+      DB_USERNAME: ${IMMICH_DB_USER:-immich}
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD:-unset}
+      DB_DATABASE_NAME: ${IMMICH_DB_NAME:-immich}
+      REDIS_HOSTNAME: ${STACK_PREFIX}immich-redis
+      # Where the ML container lives. If you did not install machine
+      # learning, this still points somewhere that is not running, and
+      # Immich logs "Machine learning server became unhealthy" now and
+      # then. That is harmless noise, and it stops once you switch ML
+      # off in Administration > Settings > Machine Learning.
+      #
+      # There IS an env-only way to do this (IMMICH_CONFIG_FILE with
+      # machineLearning.enabled=false). It works - and it also makes the
+      # ENTIRE settings UI read-only, which is a bad trade for one
+      # toggle. See stacks/photos.md if you want it anyway.
+      IMMICH_MACHINE_LEARNING_URL: ${IMMICH_ML_URL:-http://${STACK_PREFIX}immich-machine-learning:3003}
+    volumes:
+      - ${PHOTOS_LOCATION:-./photos}:/data
+      - /etc/localtime:/etc/localtime:ro
+
+  # --- Machine learning: OPTIONAL, and genuinely expensive --------------
+  # Face recognition, object detection and smart ("search for a dog")
+  # search. All of it runs on your CPU unless you have a supported GPU.
+  #
+  # WHAT IT COSTS
+  #   - The first scan of an existing library will peg every core for
+  #     HOURS, sometimes days for tens of thousands of photos. On a
+  #     laptop that means fans at full tilt and a hot machine.
+  #   - It competes with everything else on the box. Jellyfin transcodes
+  #     and *arr imports will feel slow while it runs.
+  #   - The image is ~1.5 GB and the model cache grows by a few GB more.
+  #
+  # The cpu limit below leaves cores free so the rest of your homelab
+  # stays usable. It makes the scan take longer, on purpose.
+  #
+  # Everything else in Immich - phone backup, albums, sharing, the
+  # timeline, viewing, EXIF, map - works perfectly without this.
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:release
+    container_name: ${STACK_PREFIX}immich-machine-learning
+    profiles: ["immich-ml"]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/immich/model-cache:/cache
+    deploy:
+      resources:
+        limits:
+          cpus: "${IMMICH_ML_CPUS:-2.0}"
+
+  # --- Cache -------------------------------------------------------------
+  immich-redis:
+    image: docker.io/valkey/valkey:8-bookworm
+    container_name: ${STACK_PREFIX}immich-redis
+    profiles: ["immich"]
+    restart: unless-stopped
+    healthcheck:
+      test: redis-cli ping || exit 1
+
+  # --- Database ----------------------------------------------------------
+  # Put this on your FASTEST disk (it follows ${APPDATA}), never on the
+  # spinning disk holding the photos. Immich feels slow or fast almost
+  # entirely because of where this lives.
+  immich-db:
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3
+    container_name: ${STACK_PREFIX}immich-db
+    profiles: ["immich"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${IMMICH_DB_USER:-immich}
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD:-unset}
+      POSTGRES_DB: ${IMMICH_DB_NAME:-immich}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      - ${APPDATA}/immich/postgres:/var/lib/postgresql/data

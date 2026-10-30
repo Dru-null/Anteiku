@@ -1,0 +1,80 @@
+# ============================================================
+#  media — playback: Jellyfin, Navidrome, Kavita
+# ============================================================
+#  These SERVE the library. Nothing here downloads anything.
+#
+#  PATH CONTRACT: same single ${MEDIA_ROOT} at /data as the arr stack,
+#  so Jellyfin sees exactly the files Sonarr and Radarr filed.
+#
+#  GPU: this file contains NO hardware configuration on purpose.
+#  Transcoding acceleration is layered on by one of the hw/*.yaml
+#  overrides, chosen by setup.sh. Base config here is CPU-only and
+#  works on every machine.
+# ============================================================
+services:
+
+  # --- Jellyfin: film and TV ------------------------------------------
+  # MIGRATING AN EXISTING JELLYFIN? Its database stores absolute
+  # container paths. If your old install mounted the library somewhere
+  # other than /data, change the mount below to match or your libraries,
+  # watch history and metadata will not resolve. A fresh install should
+  # leave it as /data.
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: ${STACK_PREFIX}jellyfin
+    profiles: ["jellyfin"]
+    restart: unless-stopped
+    ports:
+      - "${PORT_JELLYFIN:-8096}:8096"
+      # Client auto-discovery. UDP. If setup.sh had to move these off
+      # their standard numbers, discovery stops working and you type the
+      # address into your client by hand instead. Nothing else breaks.
+      - "${PORT_JELLYFIN_DISCOVERY:-7359}:7359/udp"
+      - "${PORT_JELLYFIN_DLNA:-1900}:1900/udp"
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/jellyfin/config:/config
+      # Transcoding scratch. Give this fast storage - it is written hard
+      # during a transcode. On a separate line so you can point it at an
+      # SSD or a tmpfs while the library stays on a big slow disk.
+      - ${APPDATA}/jellyfin/transcode:/config/transcodes
+      - ${MEDIA_ROOT}:/data
+
+  # --- Navidrome: music streaming --------------------------------------
+  # Read-only mount: a music player has no business writing to your
+  # library. Subsonic-compatible, so most mobile music apps work with it.
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: ${STACK_PREFIX}navidrome
+    profiles: ["navidrome"]
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    ports: ["${PORT_NAVIDROME:-4533}:4533"]
+    environment:
+      TZ: ${TZ}
+      ND_LOGLEVEL: info
+      ND_SCANSCHEDULE: 1h
+      ND_SESSIONTIMEOUT: 24h
+      ND_MUSICFOLDER: /music
+    volumes:
+      - ${APPDATA}/navidrome:/data
+      - ${MEDIA_ROOT}/music:/music:ro
+      # A second, separate library - uncomment and adjust if you want one
+      # library kept apart from the main collection:
+      # - ${MEDIA_ROOT}/other-music:/other:ro
+
+  # --- Kavita: ebooks and comics ---------------------------------------
+  kavita:
+    image: jvmilazz0/kavita:latest
+    container_name: ${STACK_PREFIX}kavita
+    profiles: ["kavita"]
+    restart: unless-stopped
+    ports: ["${PORT_KAVITA:-5000}:5000"]
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA}/kavita:/kavita/config
+      - ${MEDIA_ROOT}/books:/data/books
