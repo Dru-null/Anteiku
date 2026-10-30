@@ -139,7 +139,8 @@ one that is working perfectly: you hear nothing either way. If success
 is also announced, a missing Sunday message is itself the alarm.
 
 Set `NTFY_URL` and `NTFY_TOPIC` in `.env` to get phone pushes. Without
-them it still runs and logs to `~/backup-logs/`; it just cannot tell you.
+them it still runs and logs to `backup-logs/` in this folder (set
+`BACKUP_LOG_DIR` in `.env` to log elsewhere); it just cannot tell you.
 
 ---
 
@@ -196,8 +197,9 @@ cd anteiku && docker compose up -d
 
 ### Restoring a database (Immich)
 
-Verified end to end: database dropped to zero tables, restored from the
-dump, same accounts and photos afterwards.
+Tested as written, on the pinned Immich (v3.3.5): database dropped to
+zero tables, restored from a `backup.sh` dump with no errors, and a fresh
+dump of the result matched the original.
 
 ```bash
 # 1. stop the app, keep the database container running
@@ -214,6 +216,11 @@ gzip -dc /mnt/backup/2026-10-28/immich-db.sql.gz \
 # 4. start the app and log in - albums, users and shares should be back
 docker compose start immich-server
 ```
+
+If step 3 prints any `ERROR` line, the restore is incomplete, even
+though `psql` exits 0. Dumps from older Immich versions can need an extra
+`search_path` step; it is in Immich's own
+[backup and restore guide](https://docs.immich.app/administration/backup-and-restore).
 
 You do **not** need the original database password to restore — the
 dump is plain SQL. What you *do* need is the photo files under
