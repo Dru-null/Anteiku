@@ -68,7 +68,7 @@ One service touches all of these. `check.sh` catches most of what you miss.
 | `scripts/kuma-monitors.py` | Its monitor. The drift check fails without one |
 | `setup.sh` `_mk` lines | Data directories, if it needs any |
 | `setup.sh` `svc_of()` | If the compose service name differs from the key |
-| `scripts/backup.sh` | Excludes, if it keeps caches |
+| `scripts/backup.sh` | `appdir_of()`, if its config isn't in `appdata/<key>` or it keeps none. Excludes, if it keeps caches |
 
 Any `${VAR}` that `setup.sh` writes only sometimes needs a `:-default` in
 the yaml. Compose parses every stack even when a profile is off, and one
