@@ -143,6 +143,26 @@ direct-plays and nothing transcodes. Hardware encoding matters for several
 simultaneous streams or remote viewing over thin upload. `doctor.sh` tells
 you what you have and whether it's worth wiring up.
 
+## Checking your changes
+
+If you change anything here, run this before you commit:
+
+```bash
+./scripts/check.sh          # about 30 seconds
+./scripts/check.sh --tui    # also drives the picker in a real terminal
+```
+
+It lints every script, parses the Python and the compose files, checks
+every combination of stacks, runs `setup.sh` in a temporary copy (first
+run, re-runs, dry runs) and fails if a password reaches the output. It also
+scans for keys, tokens and image metadata. It starts no containers and
+changes nothing in your checkout. It needs Docker and git; shellcheck and
+Python come from containers if you don't have them.
+
+`LEAK_PATTERNS_FILE=~/my-patterns.txt ./scripts/check.sh` adds your own
+patterns (your name, your LAN), one regex per line. Keep that file outside
+the repo.
+
 ## License
 
 MIT. See `LICENSE`.

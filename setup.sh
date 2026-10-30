@@ -14,7 +14,7 @@
 #  you can only add new ones. --reconfigure unlocks them, deliberately.
 # ============================================================
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/detect.sh
 . lib/detect.sh
 
@@ -122,7 +122,7 @@ for ((i=0;i<N;i++)); do [ "${CAT_DEF[$i]}" = "on" ] && SEL+=(1) || SEL+=(0); don
 # - otherwise pressing Enter quietly drops services you added earlier.
 if [ -n "$PREV_PROFILES" ]; then
   for ((i=0;i<N;i++)); do
-    case ",$PREV_PROFILES," in *",${CAT_KEYS[$i]},"*) SEL[$i]=1 ;; *) SEL[$i]=0 ;; esac
+    case ",$PREV_PROFILES," in *",${CAT_KEYS[$i]},"*) SEL[i]=1 ;; *) SEL[i]=0 ;; esac
   done
 fi
 
@@ -140,7 +140,7 @@ for ((i=0;i<N;i++)); do INST+=(0); done
 if [ -n "$PREV_PROFILES" ]; then
   RERUN=1
   for ((i=0;i<N;i++)); do
-    case ",$PREV_PROFILES," in *",${CAT_KEYS[$i]},"*) INST[$i]=1 ;; esac
+    case ",$PREV_PROFILES," in *",${CAT_KEYS[$i]},"*) INST[i]=1 ;; esac
   done
 fi
 N_INST=0; for ((i=0;i<N;i++)); do N_INST=$((N_INST + INST[i])); done
@@ -295,7 +295,7 @@ _tui_detail() {
 }
 
 _tui_key() {   # sets KEY
-  local k k2 k3
+  local k k2
   KEY=""
   IFS= read -rsn1 k || { KEY=quit; return; }
   case "$k" in
@@ -304,8 +304,8 @@ _tui_key() {   # sets KEY
       case "$k2" in
         '[A'|'OA') KEY=up ;;   '[B'|'OB') KEY=down ;;
         '[H'|'OH') KEY=home ;; '[F'|'OF') KEY=end ;;
-        '[5') IFS= read -rsn1 -t 0.05 k3 || true; KEY=pgup ;;
-        '[6') IFS= read -rsn1 -t 0.05 k3 || true; KEY=pgdn ;;
+        '[5') IFS= read -rsn1 -t 0.05 _ || true; KEY=pgup ;;
+        '[6') IFS= read -rsn1 -t 0.05 _ || true; KEY=pgdn ;;
         '')   KEY=quit ;;   # a bare Esc
       esac ;;
     ' ')   KEY=space ;;
@@ -421,10 +421,10 @@ tui_select() {
       space) if is_locked "$idx"; then
                MSG="${C_WARN}${S_WARN} ${CAT_KEYS[$idx]} is installed (locked).${C_RST} ${C_GREY}--reconfigure unlocks it.${C_RST}"
              else
-               SEL[$idx]=$(( 1 - SEL[$idx] ))
+               SEL[idx]=$(( 1 - SEL[idx] ))
              fi ;;
-      all)   for i in "${ORDER[@]}"; do is_locked "$i" || SEL[$i]=1; done ;;
-      none)  for i in "${ORDER[@]}"; do is_locked "$i" || SEL[$i]=0; done ;;
+      all)   for i in "${ORDER[@]}"; do is_locked "$i" || SEL[i]=1; done ;;
+      none)  for i in "${ORDER[@]}"; do is_locked "$i" || SEL[i]=0; done ;;
       enter) break ;;
       quit)  _tui_restore; trap - INT TERM EXIT WINCH; return 1 ;;
     esac
@@ -468,8 +468,8 @@ elif [ "$ASSUME_YES" -eq 0 ] && [ -t 0 ]; then
     printf '  %s%s%s ' "$C_B$C_INF" "$S_PROMPT" "$C_RST"; read -r reply || break
     [ -z "$reply" ] && break
     case "$reply" in
-      a|A) for ((i=0;i<N;i++)); do is_locked "$i" || SEL[$i]=1; done ;;
-      n|N) for ((i=0;i<N;i++)); do is_locked "$i" || SEL[$i]=0; done ;;
+      a|A) for ((i=0;i<N;i++)); do is_locked "$i" || SEL[i]=1; done ;;
+      n|N) for ((i=0;i<N;i++)); do is_locked "$i" || SEL[i]=0; done ;;
       *) for tok in $reply; do
            case "$tok" in
              ''|*[!0-9]*) MENU_MSG="${C_WARN}${S_WARN} ignored '${tok}' — type numbers, like 2 5 7${C_RST}" ;;
@@ -479,7 +479,7 @@ elif [ "$ASSUME_YES" -eq 0 ] && [ -t 0 ]; then
                 elif is_locked "$idx"; then
                   MENU_MSG="${C_WARN}${S_WARN} ${CAT_KEYS[$idx]} is installed (locked).${C_RST} ${C_GREY}--reconfigure unlocks it.${C_RST}"
                 else
-                  SEL[$idx]=$(( 1 - SEL[$idx] ))
+                  SEL[idx]=$(( 1 - SEL[idx] ))
                 fi ;;
            esac
          done ;;
@@ -493,7 +493,7 @@ fi
 # Immich ML is an add-on to Immich, never on its own.
 for ((i=0;i<N;i++)); do [ "${CAT_KEYS[$i]}" = immich-ml ] && IML=$i; [ "${CAT_KEYS[$i]}" = immich ] && IMM=$i; done
 if [ "${SEL[$IML]}" -eq 1 ] && [ "${SEL[$IMM]}" -eq 0 ]; then
-  SEL[$IMM]=1
+  SEL[IMM]=1
   info "immich-ml needs immich — added it."
 fi
 
@@ -686,7 +686,6 @@ while IFS='|' read -r owner var dflt what impact; do
       note "find the server by themselves. Enter the address by hand."
       note "Playback and everything else are unaffected." ;;
     certs)
-      CERTS_BLOCKED=1
       note "Let's Encrypt validates by connecting to the standard port"
       note "from the internet. On $p, automatic certificates will not"
       note "work. Proxying on your own LAN is unaffected." ;;
@@ -853,7 +852,6 @@ note "so imports are hardlinks, not copies."
 # does not exist on your host, so it is hard to act on. Catch it here.
 if [ -e "$MEDIA_DEF" ]; then
   M_UID="$(stat -c %u "$MEDIA_DEF" 2>/dev/null || echo -1)"
-  M_GID="$(stat -c %g "$MEDIA_DEF" 2>/dev/null || echo -1)"
   if [ "$M_UID" != "$DET_UID" ] && [ "$M_UID" != "-1" ]; then
     warn "$MEDIA_DEF is owned by uid $M_UID, but containers run as $DET_UID."
     note "Sonarr/Radarr will reject their root folder with a confusing"
@@ -973,7 +971,7 @@ TMP="$(mktemp)"
 
 # Never show secrets on screen: people paste this output into issues and
 # chats. They are in the file itself, which is mode 600.
-SECRET_RE="$(echo $SECRET_KEYS | tr ' ' '|')"
+SECRET_RE="${SECRET_KEYS// /|}"
 sed -E "s/^(${SECRET_RE})=.*/\1=${C_GREY}<hidden>${C_RST}/; s/^/  /" "$TMP"
 note "Passwords are hidden here. They are in $ENV_FILE (readable only by you)."
 

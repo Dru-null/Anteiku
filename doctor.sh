@@ -6,7 +6,7 @@
 #  into a bug report (it prints no secrets).
 # ============================================================
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 # shellcheck source=lib/detect.sh
 . lib/detect.sh
 

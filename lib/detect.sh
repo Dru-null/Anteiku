@@ -3,6 +3,9 @@
 #  detect.sh — shared hardware/software detection.
 #  Sourced by doctor.sh and setup.sh. Reads only; writes nothing.
 # ============================================================
+# Library: the C_*, S_* and DET_* variables are read by the scripts that
+# source this file, so shellcheck cannot see them used here.
+# shellcheck disable=SC2034
 
 # --- output helpers ---------------------------------------------------
 # Colour only on a real terminal, and never when NO_COLOR is set
