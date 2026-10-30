@@ -867,6 +867,48 @@ if [ -e "$MEDIA_DEF" ]; then
 fi
 
 # ============================================================
+#  Updates. Asked once: a re-run keeps the answer, --reconfigure asks
+#  again. update.sh only ever offers tested releases, never main.
+# ============================================================
+h1 "Updates"
+case "${UPDATE_MODE:-}" in
+  ''|notify|auto|off) ;;
+  *) warn "UPDATE_MODE=$UPDATE_MODE is not notify, auto or off: asking again."; UPDATE_MODE="" ;;
+esac
+if { [ -z "${UPDATE_MODE:-}" ] || [ "$RECONFIGURE" -eq 1 ]; } \
+   && [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ] && [ -t 0 ]; then
+  note "Every Anteiku release is brought up and tested together, on real"
+  note "hardware, before it is published. A weekly check asks GitHub for"
+  note "the newest one. Nothing about you is sent."
+  echo
+  printf '    %s1%s  notify   tell me; I run ./update.sh myself  %s(default)%s\n' "$C_B$C_INF" "$C_RST" "$C_GREY" "$C_RST"
+  printf '    %s2%s  auto     install tested releases by itself, Sunday night\n' "$C_B$C_INF" "$C_RST"
+  printf '    %s3%s  off      never check\n' "$C_B$C_INF" "$C_RST"
+  case "${UPDATE_MODE:-notify}" in auto) d=2 ;; off) d=3 ;; *) d=1 ;; esac
+  printf '  Choice %s[%s]%s: ' "$C_B" "$d" "$C_RST"
+  read -r ans || ans=""
+  case "${ans:-$d}" in
+    1|notify) UPDATE_MODE=notify ;;
+    2|auto)   UPDATE_MODE=auto ;;
+    3|off)    UPDATE_MODE=off ;;
+    *) warn "'$ans' is not 1, 2 or 3: keeping ${UPDATE_MODE:-notify}." ;;
+  esac
+fi
+UPDATE_MODE="${UPDATE_MODE:-notify}"
+case "$UPDATE_MODE" in
+  notify) ok "notify: a message when a tested release is out; you run ./update.sh" ;;
+  auto)   ok "auto: tested releases install themselves, Sundays at 04:30"
+          note "Backup first. Never a release that says \"Action needed\" (you get"
+          note "a message instead), never one less than 3 days old." ;;
+  off)    ok "off: no checks. ./update.sh --check asks by hand." ;;
+esac
+if [ "$UPDATE_MODE" != off ] && ! _sel_has ntfy; then
+  note "Without ntfy there is nothing to message you: ./doctor.sh shows it."
+fi
+[ "$UPDATE_MODE" = auto ] && [ -z "${BACKUP_DEST:-}" ] \
+  && warn "auto needs BACKUP_DEST in .env: it won't update without a backup."
+
+# ============================================================
 #  Write
 # ============================================================
 h1 "Configuration to write"
@@ -901,6 +943,9 @@ TMP="$(mktemp)"
   echo "# Optional push notifications for scheduled backups (ntfy)."
   echo "# NTFY_URL=http://localhost:8095"
   echo "# NTFY_TOPIC=homelab"
+  echo
+  echo "# New tested releases: notify, auto or off. See docs/updating.md."
+  echo "UPDATE_MODE=$UPDATE_MODE"
   echo
   if _sel_has ntfy; then
     echo "# ntfy. Locked down by default; run scripts/ntfy-setup.sh to"
@@ -1171,6 +1216,10 @@ else
   step 4 "Start it"       "docker compose up -d"
 fi
 step 5 "See what is up"   "docker compose ps"
+if [ "$UPDATE_MODE" != off ] && ! { have crontab && crontab -l 2>/dev/null \
+     | awk -v t="# anteiku-update $PWD" 'substr($0, length($0) - length(t) + 1) == t {f=1} END {exit !f}'; }; then
+  step 6 "Weekly update check" "./update.sh --schedule" "one line in your crontab"
+fi
 echo
 note "Per-service setup, in order, is in stacks/<stack>.md."
 
