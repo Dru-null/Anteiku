@@ -88,9 +88,30 @@ check_run() {
 # RESULT (a short summary for a notification).
 UNATTENDED=0
 OLD=""; NEW=""; OLD_REF=""; RESULT=""; BACKUP_AT=""; SLOG=""; RETIRED=""
+OLD_PROFILES=""
+
+env_profiles() { sed -n 's/^COMPOSE_PROFILES=//p' "$ENV_FILE" 2>/dev/null | tail -n 1; }
+
+# Services setup.sh took out of COMPOSE_PROFILES during this update: the
+# new release dropped them. The old one still has them, so the way back
+# selects them again; otherwise they would run on there, unmanaged.
+dropped_profiles() {
+  local now k out="" old=()
+  [ -n "$OLD_PROFILES" ] || return 0
+  now="$(env_profiles)"
+  IFS=, read -ra old <<< "$OLD_PROFILES"
+  for k in "${old[@]}"; do
+    case "$k" in ''|*[!a-z0-9-]*) continue ;; esac
+    case ",$now," in *",$k,"*) ;; *) out="$out,$k" ;; esac
+  done
+  printf '%s' "$out"
+}
 
 rollback_cmds() {
-  printf 'cd %q\ngit reset --keep %s\n./setup.sh --yes\ndocker compose up -d\n' "$PWD" "$OLD_REF"
+  local add; add="$(dropped_profiles)"
+  printf 'cd %q\ngit reset --keep %s\n' "$PWD" "$OLD_REF"
+  [ -n "$add" ] && printf "sed -i 's/^COMPOSE_PROFILES=.*/&%s/' .env   # select %s again\n" "$add" "$(tr ',' ' ' <<< "${add#,}")"
+  printf './setup.sh --yes\ndocker compose up -d\n'
 }
 
 stopped() {   # what failed; after the checkout moved, print the way back
@@ -190,6 +211,7 @@ Nothing was changed."
 
   h1 "3/5  setup.sh"
   mkdir -p "$LOG_DIR"; SLOG="$LOG_DIR/setup-$STAMP.log"
+  OLD_PROFILES="$(env_profiles)"   # for the way back: see dropped_profiles
   # Keeps every setting, password and override; adds what the release needs.
   if ! NO_COLOR=1 ./setup.sh --yes > "$SLOG" 2>&1; then
     tail -n 15 "$SLOG" | sed 's/^/    /'
