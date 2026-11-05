@@ -96,15 +96,8 @@ env_profiles() { sed -n 's/^COMPOSE_PROFILES=//p' "$ENV_FILE" 2>/dev/null | tail
 # new release dropped them. The old one still has them, so the way back
 # selects them again; otherwise they would run on there, unmanaged.
 dropped_profiles() {
-  local now k out="" old=()
   [ -n "$OLD_PROFILES" ] || return 0
-  now="$(env_profiles)"
-  IFS=, read -ra old <<< "$OLD_PROFILES"
-  for k in "${old[@]}"; do
-    case "$k" in ''|*[!a-z0-9-]*) continue ;; esac
-    case ",$now," in *",$k,"*) ;; *) out="$out,$k" ;; esac
-  done
-  printf '%s' "$out"
+  profiles_dropped "$OLD_PROFILES" "$(env_profiles)"
 }
 
 rollback_cmds() {

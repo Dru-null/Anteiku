@@ -97,3 +97,18 @@ retired_notice() {
     on { while (blank > 0) { print ""; blank-- } print }
   ' "$1" 2>/dev/null
 }
+
+# profiles_dropped <profiles before> <profiles now> -> ",a,b": the keys
+# in the first list missing from the second (T-036). update.sh compares
+# COMPOSE_PROFILES from before setup.sh with after: a release that
+# removed a service took it out. The way back puts these back. Keys only
+# ([a-z0-9-]), so the result is safe inside the printed sed command.
+profiles_dropped() {
+  local k out="" old=()
+  IFS=, read -ra old <<< "$1"
+  for k in "${old[@]}"; do
+    case "$k" in ''|*[!a-z0-9-]*) continue ;; esac
+    case ",$2," in *",$k,"*) ;; *) out="$out,$k" ;; esac
+  done
+  printf '%s' "$out"
+}

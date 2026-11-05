@@ -346,6 +346,7 @@ if [ -f "$S/.env" ]; then
   # profile and must say so, with its data dir, not go silent.
   sed -i "s/^COMPOSE_PROFILES=\(.*\)/COMPOSE_PROFILES=\1,retired-check/" "$S/.env"
   mkdir -p "$S/appdata/retired-check"
+  prof_before="$(sed -n 's/^COMPOSE_PROFILES=//p' "$S/.env")"
   run_setup yes4 --yes; rc=$?
   step "re-run, a profile no longer in the catalogue" yes4 "$rc"
   if grep -q 'retired-check' <<< "$(sed -n 's/^COMPOSE_PROFILES=//p' "$S/.env")"; then err "re-run kept a profile that is not in the catalogue"
@@ -362,6 +363,25 @@ if [ -f "$S/.env" ]; then
      || [ "$(tail -n 1 <<< "$got")" != "$(grep -m1 'service that is gone' "$WORK/yes4.log")" ]; then
     err "lib/release.sh misreads the retired-service section of setup.sh's output"; printf '%s\n' "$got" | indent
   else ok "update.sh finds the retired-service section ($(wc -l <<< "$got") lines)"; fi
+  # The way back after such an update selects the service again (T-036):
+  # update.sh compares COMPOSE_PROFILES from before setup.sh with after.
+  # This run's real before/after, then the edge cases.
+  n=0; bad=""
+  while IFS='|' read -r before now want; do
+    n=$((n+1))
+    got="$(. lib/release.sh; profiles_dropped "$before" "$now")"
+    [ "$got" = "$want" ] || bad="$bad [$before] vs [$now]: got [$got], want [$want];"
+  done <<CASES
+$prof_before|$(sed -n 's/^COMPOSE_PROFILES=//p' "$S/.env")|,retired-check
+a,b,c|a,c|,b
+a,b|a,b|
+a,b||,a,b
+|a|
+a,,b|b|,a
+a,Bad key,b|a|,b
+CASES
+  if [ -n "$bad" ]; then err "lib/release.sh profiles_dropped:$bad"
+  else ok "update.sh's way back finds the dropped profiles ($n cases)"; fi
   sum="$(sha256sum < "$S/.env")"
   run_setup dry2 --dry-run --yes; rc=$?
   step "re-run, --dry-run --yes" dry2 "$rc"
