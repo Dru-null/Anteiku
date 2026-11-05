@@ -319,10 +319,15 @@ leaks_in() { # log
     [ -n "$v" ] && grep -qF -- "$v" "$1" && echo "$k"
   done
 }
+# A log's last lines, unless they would show a secret (CI logs are public).
+tail_of() { # log
+  if [ -n "$(leaks_in "$1")" ]; then note "(output not shown: it holds a secret)"
+  else tail -n 15 "$1" | indent; fi
+}
 step() { # label log rc
   local l; l="$(leaks_in "$WORK/$2.log")"
   [ -f "$S/.env" ] && grep -q "$CANARY" "$S/.env" && err "$1: NTFY_PASS was taken from the environment into .env"
-  if [ "$3" -ne 0 ]; then err "$1: exit $3"; tail -n 15 "$WORK/$2.log" | indent
+  if [ "$3" -ne 0 ]; then err "$1: exit $3"; tail_of "$WORK/$2.log"
   elif [ -n "$l" ]; then err "$1: printed a secret ($(echo "$l" | tr '\n' ' '))"
   else ok "$1: exit 0, no secrets printed"; fi
 }
@@ -428,6 +433,142 @@ CASES
   else ok "compose config on the generated .env: valid"; fi
 else
   err "--yes wrote no .env"
+fi
+
+# ------------------------------------------------------------ helper scripts
+h1 "Helper scripts"
+# The scripts users run later (T-018), on the .env setup.sh just wrote:
+# every service, absolute paths. A renamed variable or a broken .env read
+# would otherwise show only when someone's backup fails. No containers:
+# dry runs, then real backups with no database to dump. The NTFY_PASS
+# canary is in their environment too; no secret may reach their output.
+run_helper() { # log-name [VAR=value...] command...   (a VAR given here wins)
+  local log="$WORK/$1.log" extra=(); shift
+  while [[ "${1:-}" == [A-Z]*=* ]]; do extra+=("$1"); shift; done
+  (cd "$S" && env -i "PATH=$PATH" "HOME=$HOME" ${DOCKER_HOST:+"DOCKER_HOST=$DOCKER_HOST"} \
+    NTFY_PASS="$CANARY" "${extra[@]}" "$@" < /dev/null > "$log" 2>&1)
+}
+has_line() { # log grep-pattern what
+  grep -q -- "$2" "$WORK/$1.log" || { err "$3"; tail_of "$WORK/$1.log"; return 1; }
+}
+if [ ! -f "$S/.env" ]; then err "helper scripts: not run, setup.sh wrote no .env"
+else
+  PROF="$(sed -n 's/^COMPOSE_PROFILES=//p' "$S/.env")"
+  # The monitors kuma-bootstrap.sh must plan: every installed service but
+  # Kuma itself (as in the drift check above), plus the internet ping.
+  WANT_MON="$(tr ',' '\n' <<< "$PROF" | grep -vx -e '' -e uptime-kuma | LC_ALL=C sort -u)"
+  n_mon=$(( $(grep -c . <<< "$WANT_MON") + 1 ))
+  BK_DEST="$WORK/backup-dest"   # outside the copy, not there yet
+  tree_of > "$WORK/tree-helpers"
+
+  run_helper bk-dry ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
+  step "backup.sh --dry-run" bk-dry "$rc"
+  # A renamed variable inside $(...) only empties a value: check what was read.
+  n_prof="$(tr ',' '\n' <<< "$PROF" | grep -c .)"
+  [ "$rc" -eq 0 ] && has_line bk-dry 'DRY RUN' "backup.sh --dry-run: no DRY RUN line" \
+    && has_line bk-dry " of $n_prof installed services$" "backup.sh --dry-run: plan does not count $n_prof installed services" \
+    && has_line bk-dry 'left out of the stack archive (inside this folder): ./media ./photos$' \
+       "backup.sh --dry-run: media and photos not named as left out of the stack archive" \
+    && ok "backup.sh --dry-run: plan counts $n_prof services, leaves out ./media and ./photos"
+  [ -e "$BK_DEST" ] && err "backup.sh --dry-run created its destination"
+
+  if ! have python3; then
+    note "kuma-bootstrap.sh and kuma-monitors.py need python3 on the host: not run"
+  else
+    run_helper kuma-dry ./scripts/kuma-bootstrap.sh --dry-run; rc=$?
+    step "kuma-bootstrap.sh --dry-run" kuma-dry "$rc"
+    [ "$rc" -eq 0 ] && has_line kuma-dry 'DRY RUN' "kuma-bootstrap.sh --dry-run: no DRY RUN line" \
+      && has_line kuma-dry "^  $n_mon monitors across" "kuma-bootstrap.sh --dry-run: did not render $n_mon monitors" \
+      && ok "kuma-bootstrap.sh --dry-run: rendered $n_mon monitors"
+    # The plan as kuma-apply.py receives it: JSON, one row per service.
+    run_helper kuma-plan COMPOSE_PROFILES="$PROF" STACK_PREFIX=chk- python3 -I scripts/kuma-monitors.py plan; rc=$?
+    got="$(python3 -I -c '
+import json, sys
+want = set(sys.argv[2].split()) | {"__internet__"}
+try:
+    rows = json.load(open(sys.argv[1]))
+except ValueError as e:
+    sys.exit("not JSON: %s" % e)
+if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+    sys.exit("not a list of monitors")
+names = [r.get("service") for r in rows]
+if len(names) != len(set(names)): sys.exit("a service twice: %s" % sorted({n for n in names if names.count(n) > 1}))
+if set(names) != want: sys.exit("missing %s, extra %s" % (sorted(want - set(names)), sorted(set(names) - want)))
+bad = [r["service"] for r in rows if r["service"] != "__internet__" and r.get("container") != "chk-" + r["service"]]
+if bad: sys.exit("wrong container name: %s" % bad)
+print(len(rows))
+' "$WORK/kuma-plan.log" "$WANT_MON" 2>&1)"
+    if [ "$rc" -ne 0 ]; then err "kuma-monitors.py plan: exit $rc"; tail -n 5 "$WORK/kuma-plan.log" | indent
+    elif [ "$got" != "$n_mon" ]; then err "kuma-monitors.py plan: $got"
+    else ok "kuma-monitors.py plan: JSON, $got monitors (every installed service but Kuma, + internet)"; fi
+  fi
+
+  run_helper ntfy-dry ./scripts/ntfy-setup.sh --dry-run; rc=$?
+  step "ntfy-setup.sh --dry-run" ntfy-dry "$rc"
+  [ "$rc" -eq 0 ] && has_line ntfy-dry 'DRY RUN' "ntfy-setup.sh --dry-run: no DRY RUN line" \
+    && has_line ntfy-dry "user  *$(sed -n 's/^NTFY_USER=//p' "$S/.env")$" "ntfy-setup.sh --dry-run: did not show the ntfy user from .env" \
+    && ok "ntfy-setup.sh --dry-run: read the ntfy user from .env"
+  wrote_nothing "helper dry runs" "$WORK/tree-helpers"
+
+  # One real backup on the default layout (T-055): ./media and ./photos
+  # inside the folder, a file in each, kept out of stack.tar.gz. Nothing
+  # runs here, so Immich (the one database) is left out of this .env.
+  cp "$S/.env" "$WORK/env-helpers"
+  sed -i "s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$(tr ',' '\n' <<< "$PROF" | grep -vx -e immich -e immich-ml | paste -sd,)/" "$S/.env"
+  med="$(sed -n 's/^MEDIA_ROOT=//p' "$S/.env")"; pho="$(sed -n 's/^PHOTOS_LOCATION=//p' "$S/.env")"
+  if [ "$med" != "$S/media" ] || [ "$pho" != "$S/photos" ]; then
+    err "backup.sh: .env does not hold the default layout (MEDIA_ROOT, PHOTOS_LOCATION = ./media, ./photos as absolute paths)"
+  else
+    mkdir -p "$med/tv" "$pho" && echo check > "$med/tv/check.mkv" && echo check > "$pho/check.jpg"
+    tree_of > "$WORK/tree-backup"
+    run_helper bk-real ./scripts/backup.sh "$BK_DEST"; rc=$?
+    step "backup.sh, a real run" bk-real "$rc"
+    wrote_nothing "backup.sh, into the install folder" "$WORK/tree-backup"
+    arc="$(find "$BK_DEST" -mindepth 2 -maxdepth 2 -name stack.tar.gz)"
+    if [ "$(grep -c . <<< "$arc")" -ne 1 ]; then err "backup.sh: expected one stack.tar.gz in the destination, found $(grep -c . <<< "$arc")"
+    else
+      list="$(LC_ALL=C tar tzf "$arc" 2>&1)"; rc=$?
+      miss=""; for f in ./.env ./compose.yaml ./setup.sh ./scripts/backup.sh; do grep -qxF "$f" <<< "$list" || miss="$miss $f"; done
+      # Fixed-string prefixes, not regexes.
+      in="$(awk 'index($0, "./media/") == 1 || index($0, "./photos/") == 1' <<< "$list" | head -n 5)"
+      if [ "$rc" -ne 0 ]; then err "backup.sh: tar cannot list stack.tar.gz (exit $rc)"
+      elif [ -n "$miss" ]; then err "backup.sh: stack.tar.gz lacks$miss"
+      elif [ -n "$in" ]; then err "backup.sh: stack.tar.gz holds media or photos:"; printf '%s\n' "$in" | indent
+      elif [ "$(stat -c %a "$arc")" != 600 ]; then err "backup.sh: stack.tar.gz is not mode 600"
+      else ok "backup.sh: stack.tar.gz has .env and compose.yaml, no media or photos, mode 600 ($(grep -c . <<< "$list") entries)"; fi
+    fi
+
+    # backup-cron.sh as cron starts it: from another folder, a HOME of its
+    # own, curl a stand-in. It once logged to ~/backup-logs (LESSONS 2):
+    # nothing may appear outside the copy. Its destination is inside.
+    mkdir -p "$WORK/cron-home" "$WORK/stub"
+    # Records the title and the URL, never -u; anything else is an unknown call.
+    cat > "$WORK/stub/curl" <<'STUB'
+#!/bin/sh
+t=""; u=""
+for a in "$@"; do case "$a" in "Title: "*) t="$a" ;; http://*|https://*) u="$a" ;; esac; done
+[ -n "$t" ] && [ -n "$u" ] || t="unknown call"
+printf '%s|%s\n' "$t" "$u" >> "${0%/*}/../curl.calls"
+STUB
+    chmod 755 "$WORK/stub/curl"
+    echo "BACKUP_DEST=./backups" >> "$S/.env"
+    outside() { find "$WORK" -mindepth 1 \( -path "$S" -o -path "$WORK/cron.log" -o -path "$WORK/curl.calls" \) -prune -o -print | LC_ALL=C sort; }
+    outside > "$WORK/tree-outside"
+    (cd "$WORK/cron-home" && env -i "PATH=$WORK/stub:$PATH" "HOME=$WORK/cron-home" NTFY_PASS="$CANARY" \
+      "$S/scripts/backup-cron.sh" < /dev/null > "$WORK/cron.log" 2>&1); rc=$?
+    clog="$(find "$S/backup-logs" -maxdepth 1 -name 'backup-*.log' 2>/dev/null)"
+    new="$(outside | LC_ALL=C comm -13 "$WORK/tree-outside" -)"
+    want="Title: Backup OK|$(sed -n 's/^NTFY_URL=//p' "$S/.env")/$(sed -n 's/^NTFY_TOPIC=//p' "$S/.env")"
+    l="$( { leaks_in "$WORK/cron.log"; [ -n "$clog" ] && leaks_in "$clog"; [ -f "$WORK/curl.calls" ] && leaks_in "$WORK/curl.calls"; } | sort -u)"
+    if [ -n "$new" ]; then err "backup-cron.sh wrote outside the install folder:"; printf '%s\n' "${new//$WORK/<tmp>}" | head -n 10 | indent
+    elif [ -n "$l" ]; then err "backup-cron.sh: printed a secret ($(echo "$l" | tr '\n' ' '))"
+    elif [ "$rc" -ne 0 ]; then err "backup-cron.sh: exit $rc"; tail_of "$(head -n 1 <<< "${clog:-$WORK/cron.log}")"
+    elif [ "$(grep -c . <<< "$clog")" -ne 1 ] || ! grep -q 'Backup complete' "$clog"; then err "backup-cron.sh: no backup-logs/backup-*.log saying Backup complete"
+    elif [ "$(cat "$WORK/curl.calls" 2>/dev/null)" != "$want" ]; then err "backup-cron.sh: expected one \"Backup OK\" to NTFY_URL/NTFY_TOPIC, got:"; { indent < "$WORK/curl.calls"; } 2>/dev/null
+    elif [ -z "$(find "$S/backups" -mindepth 2 -maxdepth 2 -name stack.tar.gz 2>/dev/null)" ]; then err "backup-cron.sh: no stack.tar.gz in BACKUP_DEST"
+    else ok "backup-cron.sh: exit 0, log in backup-logs/, one Backup OK sent, nothing new outside the copy (temp dir and its HOME, $(wc -l < "$WORK/tree-outside") paths)"; fi
+  fi
+  cp "$WORK/env-helpers" "$S/.env"
 fi
 
 # ------------------------------------------------------------ picker
