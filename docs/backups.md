@@ -289,6 +289,26 @@ that is irreplaceable data, not media. Copy it somewhere separately.
 reason. Think before putting it on a shared drive, and encrypt it before
 any cloud.
 
+**Live databases.** `backup.sh` archives `appdata/` while your
+services run. Most of them keep their data in a SQLite file they can
+write to at any moment. When a file changes while tar is reading it,
+tar says `file changed as we read it`, and that file's copy may not
+match itself: a database copied mid-write can fail to open after a
+restore. `backup.sh` reports this as a warning naming the files; the
+backup still counts as done, and `update.sh` goes on. Anything else
+tar reports, such as a file it can't read, is a failure, with tar's
+reason underneath. Immich's database is safe either way: it is dumped
+with `pg_dump`, never archived live.
+
+The same file named run after run? Back that service up stopped, or
+let it make its own copy first:
+
+| Service | How |
+|---|---|
+| Any | `docker compose stop uptime-kuma && ./scripts/backup.sh; docker compose start uptime-kuma`: offline while the backup runs, an exact copy. Stop only that service, not the stack: `backup.sh` needs Immich's database running to dump it |
+| Sonarr, Radarr, Lidarr, Prowlarr | Already covered. Each writes its own backup every 7 days to `Backups/scheduled` in its config folder, keeps 28 days of them, and that folder is in the archive. Restore one under System → Backup |
+| Vaultwarden | `docker compose exec vaultwarden /vaultwarden backup` before `backup.sh`: it writes `db_<date>_<time>.sqlite3` next to the database, so the archive holds a consistent copy |
+
 **Retention cuts both ways.** 30 days of dailies is useless against
 corruption you only notice after 40 days. Keep a monthly that you never
 rotate.
