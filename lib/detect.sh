@@ -76,11 +76,22 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # compose includes a file from a subdirectory, and the failure is silent:
 # the stack comes up fine with your data somewhere you did not intend.
 abspath() {
+  local p="$1" head tail
+  case "$p" in /*) printf '%s\n' "$p"; return ;; esac
+  # The folder may not exist yet (a dry run creates nothing): resolve the
+  # part that does, keep the rest as written.
+  head="$(dirname "$p")"; tail="$(basename "$p")"
+  while [ ! -d "$head" ]; do tail="$(basename "$head")/$tail"; head="$(dirname "$head")"; done
+  printf '%s\n' "$(cd "$head" && pwd)/$tail"
+}
+
+# existing_dir <path> -> the path, or its nearest parent that exists.
+# df and stat need a real folder; it sits on the same filesystem as a
+# folder that will be created under it.
+existing_dir() {
   local p="$1"
-  case "$p" in
-    /*) printf '%s\n' "$p" ;;
-    *)  printf '%s\n' "$(cd "$(dirname "$p")" 2>/dev/null && pwd)/$(basename "$p")" ;;
-  esac
+  while [ ! -d "$p" ]; do p="$(dirname "$p")"; done
+  printf '%s\n' "$p"
 }
 
 # --- system -----------------------------------------------------------
