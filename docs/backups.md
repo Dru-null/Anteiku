@@ -44,7 +44,7 @@ What it produces, in a dated directory:
 | File | Contents |
 |---|---|
 | `appdata-configs.tar.gz` | every installed service's config, caches excluded |
-| `stack.tar.gz` | compose files + `.env`, mode 600 |
+| `stack.tar.gz` | the install folder (compose files, `.env`, scripts, logs) without `appdata`, media, photos or the backups; mode 600 |
 | `<service>-db.sql.gz` | a proper dump per database |
 
 It exits non-zero if anything failed, so cron can act on it.
@@ -276,6 +276,12 @@ rebuild themselves:
 
 On a real system this is the difference between a 2.4 GB nightly and one
 well under 1 GB. Across 30 dailies, 72 GB versus 20 GB.
+
+Folders of their own, when they sit inside the install folder (the
+defaults put `./media` and `./photos` there): `MEDIA_ROOT`,
+`PHOTOS_LOCATION` and the backup destination are left out of
+`stack.tar.gz`, and the plan names them. Outside the install folder,
+the archive never reaches them.
 
 ---
 
