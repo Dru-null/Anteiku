@@ -273,6 +273,21 @@ else
   note "first failure (${FAILED[0]}):"; printf '%s\n' "$FIRST_OUT" | head -n 10 | indent
 fi
 
+# ------------------------------------------------------------ detection
+h1 "Detection (mocked)"
+# lib/detect.sh, doctor.sh and setup.sh --dry-run on fake machines
+# (tests/detect): GPUs, memory, arch, distros, Docker, ports, missing
+# tools. Mocked: what the scripts make of that input, not that the
+# hardware works. Runs here, before setup.sh below writes a .env.
+out="$(cd "$WORK/repo" && bash tests/detect/run.sh -q 2>&1)"; rc=$?
+sum="$(tail -n 1 <<< "$out")"
+if [ "$rc" -eq 0 ] && [[ $sum =~ ^([0-9]+)\ cases,\ ([0-9]+)\ checks,\ 0\ failed ]] && [ "${BASH_REMATCH[1]}" -gt 0 ]; then
+  ok "detection: ${sum%%;*}"
+  [[ $sum == *";"* ]] && note "${sum#*; }"
+else
+  err "detection: ${sum:-no result} (exit $rc)"; sed '$d' <<< "$out" | head -n 40 | indent
+fi
+
 # ------------------------------------------------------------ setup.sh
 h1 "setup.sh"
 # Its own prefix, project and network, so it can run beside a real stack.
