@@ -94,6 +94,7 @@ Everything here has a guide. Read the one for what you're doing before changing 
 | [`docs/remote-access.md`](docs/remote-access.md) | reaching your services from outside, safely |
 | [`docs/backups.md`](docs/backups.md) | what's backed up, scheduling, testing a restore |
 | [`docs/updating.md`](docs/updating.md) | new releases, `update.sh`, moving one service to a new version, and back |
+| [`docs/compatibility.md`](docs/compatibility.md) | which distros, GPUs and setups have been tested, and how |
 
 If a guide doesn't make sense, ask. An AI assistant is good at explaining a term, an error or a log line; paste the error and the part of the guide you're on. `doctor.sh` and `setup.sh` output is safe to share. Never paste your `.env`: it holds your passwords.
 
@@ -106,7 +107,7 @@ Still stuck, or found something wrong: [open an issue](https://github.com/dru-nu
 - **Nothing updates unless you choose automatic updates.** Every image is pinned to the version that was tested; [`CHANGELOG.md`](CHANGELOG.md) says what each release changed. `setup.sh` asks whether to tell you about new releases (the default), install them by themselves, or neither.
 - **The update check sends nothing.** Once a week it asks GitHub for the newest release and reads its changelog. No IDs, no statistics, and nothing at all with updates off.
 - **One filesystem:** downloads and library share one `MEDIA_ROOT`, so imports are hardlinks, not copies. Split them and the disk fills twice as fast.
-- **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU. NVIDIA, AMD, ARM64 and rootless Docker are written from upstream docs and not yet tested; the scripts say so when you're on one of those paths.
+- **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU, before each release. NVIDIA, AMD, ARM64 and rootless Docker are written from upstream docs and not yet run on hardware. [`docs/compatibility.md`](docs/compatibility.md) lists what has run where, and how.
 
 ## Contributing
 
