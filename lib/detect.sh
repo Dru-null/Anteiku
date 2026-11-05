@@ -6,6 +6,11 @@
 # Library: the C_*, S_* and DET_* variables are read by the scripts that
 # source this file, so shellcheck cannot see them used here.
 # shellcheck disable=SC2034
+#
+# Tests only: ANTEIKU_DETECT_ROOT=<dir> makes detection read /etc, /proc,
+# /sys and /dev/dri under <dir> (a fixture), and report device paths as
+# they would be on the real machine. Unset, the real ones are read.
+# Tools (lspci, ss, docker, ...) are swapped through PATH: tests/detect/.
 
 # --- output helpers ---------------------------------------------------
 # Colour only on a real terminal, and never when NO_COLOR is set
@@ -96,21 +101,23 @@ existing_dir() {
 
 # --- system -----------------------------------------------------------
 detect_os() {
+  local R="${ANTEIKU_DETECT_ROOT:-}"
   DET_DISTRO="unknown"; DET_DISTRO_VER=""
-  if [ -r /etc/os-release ]; then
+  if [ -r "$R/etc/os-release" ]; then
     # shellcheck disable=SC1091
-    . /etc/os-release
+    . "$R/etc/os-release"
     DET_DISTRO="${NAME:-unknown}"; DET_DISTRO_VER="${VERSION_ID:-}"
   fi
   DET_KERNEL="$(uname -r)"
   DET_ARCH="$(uname -m)"
-  DET_TZ="$( (timedatectl show -p Timezone --value 2>/dev/null) || cat /etc/timezone 2>/dev/null || echo 'Etc/UTC')"
+  DET_TZ="$( (timedatectl show -p Timezone --value 2>/dev/null) || cat "$R/etc/timezone" 2>/dev/null || echo 'Etc/UTC')"
   DET_UID="$(id -u)"; DET_GID="$(id -g)"
 }
 
 detect_cpu() {
-  DET_CPU="$(awk -F': ' '/^model name/{print $2; exit}' /proc/cpuinfo 2>/dev/null)"
-  [ -z "$DET_CPU" ] && DET_CPU="$(awk -F': ' '/^Model/{print $2; exit}' /proc/cpuinfo 2>/dev/null)"
+  local R="${ANTEIKU_DETECT_ROOT:-}"
+  DET_CPU="$(awk -F': ' '/^model name/{print $2; exit}' "$R/proc/cpuinfo" 2>/dev/null)"
+  [ -z "$DET_CPU" ] && DET_CPU="$(awk -F': ' '/^Model/{print $2; exit}' "$R/proc/cpuinfo" 2>/dev/null)"
   [ -z "$DET_CPU" ] && DET_CPU="unknown"
   DET_CORES="$(nproc 2>/dev/null || echo '?')"
   DET_CPU_VENDOR="other"
@@ -121,10 +128,10 @@ detect_cpu() {
 }
 
 detect_mem() {
-  local kb
-  kb="$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  local kb R="${ANTEIKU_DETECT_ROOT:-}"
+  kb="$(awk '/^MemTotal:/{print $2}' "$R/proc/meminfo" 2>/dev/null || echo 0)"
   DET_MEM_GB=$(( kb / 1024 / 1024 ))
-  kb="$(awk '/^SwapTotal:/{print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  kb="$(awk '/^SwapTotal:/{print $2}' "$R/proc/meminfo" 2>/dev/null || echo 0)"
   DET_SWAP_GB=$(( kb / 1024 / 1024 ))
 }
 
@@ -132,6 +139,7 @@ detect_mem() {
 # Sets DET_GPUS (human list), DET_GPU_VENDORS (space-separated: intel amd nvidia),
 # and DET_RENDER_NODES ("node|pcipath|driver" per line).
 detect_gpu() {
+  local R="${ANTEIKU_DETECT_ROOT:-}"
   DET_GPUS=""; DET_GPU_VENDORS=""; DET_RENDER_NODES=""
 
   if have lspci; then
@@ -149,23 +157,23 @@ detect_gpu() {
   # Render nodes, with the STABLE by-path id. Bare /dev/dri/renderD128 is
   # NOT stable across reboots on a machine with two GPUs — the numbers can
   # swap, and a container pinned to the wrong one fails to transcode.
-  if [ -d /dev/dri ]; then
+  if [ -d "$R/dev/dri" ]; then
     local n base drv path
-    for n in /dev/dri/renderD*; do
+    for n in "$R"/dev/dri/renderD*; do
       [ -e "$n" ] || continue
       base="$(basename "$n")"
-      drv="$(basename "$(readlink -f "/sys/class/drm/$base/device/driver" 2>/dev/null)" 2>/dev/null)"
+      drv="$(basename "$(readlink -f "$R/sys/class/drm/$base/device/driver" 2>/dev/null)" 2>/dev/null)"
       [ -z "$drv" ] && drv="unknown"
       path=""
-      if [ -d /dev/dri/by-path ]; then
+      if [ -d "$R/dev/dri/by-path" ]; then
         local p
-        for p in /dev/dri/by-path/*-render; do
+        for p in "$R"/dev/dri/by-path/*-render; do
           [ -e "$p" ] || continue
-          if [ "$(readlink -f "$p")" = "$(readlink -f "$n")" ]; then path="$p"; break; fi
+          if [ "$(readlink -f "$p")" = "$(readlink -f "$n")" ]; then path="${p#"$R"}"; break; fi
         done
       fi
       [ -z "$path" ] && path="(no by-path entry)"
-      DET_RENDER_NODES="${DET_RENDER_NODES}${n}|${path}|${drv}"$'\n'
+      DET_RENDER_NODES="${DET_RENDER_NODES}${n#"$R"}|${path}|${drv}"$'\n'
     done
   fi
 
@@ -181,6 +189,7 @@ detect_gpu() {
 #   DET_*_RENDER    - the by-path symlink for a given vendor's card. Stable
 #                     across reboots; the bare renderD12X number is not.
 detect_render() {
+  local R="${ANTEIKU_DETECT_ROOT:-}"
   DET_RENDER_GID=""; DET_INTEL_RENDER=""; DET_AMD_RENDER=""; DET_NVIDIA_RENDER=""
 
   local grp
@@ -189,9 +198,9 @@ detect_render() {
     [ -n "$DET_RENDER_GID" ] && { DET_RENDER_GROUP="$grp"; break; }
   done
   # Fall back to whatever group actually owns the device.
-  if [ -z "$DET_RENDER_GID" ] && [ -e /dev/dri/renderD128 ]; then
-    DET_RENDER_GROUP="$(stat -c %G /dev/dri/renderD128 2>/dev/null)"
-    DET_RENDER_GID="$(stat -c %g /dev/dri/renderD128 2>/dev/null)"
+  if [ -z "$DET_RENDER_GID" ] && [ -e "$R/dev/dri/renderD128" ]; then
+    DET_RENDER_GROUP="$(stat -c %G "$R/dev/dri/renderD128" 2>/dev/null)"
+    DET_RENDER_GID="$(stat -c %g "$R/dev/dri/renderD128" 2>/dev/null)"
   fi
 
   local node path drv
