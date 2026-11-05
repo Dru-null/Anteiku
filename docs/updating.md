@@ -124,8 +124,10 @@ What `./update.sh` does, in order, stopping at the first problem:
 6. `docker compose pull`, `docker compose up -d`, and shows the result.
 
 If a step fails after the files moved, it prints the exact commands to
-go back, starting with `git reset --keep <where you were>`. Those don't
-roll a database back: an app that already converted its database needs
+go back, starting with `git reset --keep <where you were>`. If the
+release removed a service you have, they include a `sed` line that puts
+it back in `COMPOSE_PROFILES`: the old release still has it, and
+selected again it's managed again. Those don't roll a database back: an app that already converted its database needs
 the backup from step 3 ([`backups.md`](backups.md)).
 
 ## Being told, or updating by itself
