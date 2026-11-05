@@ -26,8 +26,9 @@ rules first; a change that breaks one won't be merged however good it is.
 
 It must print `All checks passed.` and exit 0. It lints (shellcheck from
 its pinned image, the same version as CI, never a host copy), parses, checks
-every compose combination, runs `setup.sh` in a temporary copy, drives the
-picker, and scans for secrets and image metadata. It starts none of the
+every compose combination, runs `setup.sh` in a temporary copy, runs
+detection against fake machines (`tests/detect`), drives the picker, and
+scans for secrets and image metadata. It starts none of the
 stack's containers.
 
 Add your own leak patterns (your name, your LAN) with
@@ -80,6 +81,24 @@ Regenerate the screenshot in `assets/picker.svg` with
 `tests/screenshot.py` (the command is at the top of the file). Use a
 throwaway copy and a demo prefix, so nothing from your machine is on
 screen.
+
+## Changing detection
+
+`lib/detect.sh` decides the GPU profile, the render device, the ports and
+more, on hardware no one person owns. `tests/detect/cases.sh` describes
+fake machines (lspci lines, render nodes, `/proc`, os-release, which tools
+exist) and what `doctor.sh` and `setup.sh` must make of them. Add or change
+a case with your change, and run just that one while you work:
+
+```bash
+bash tests/detect/run.sh --list
+bash tests/detect/run.sh gpu_amd
+```
+
+These results are *mocked*: they show what the scripts do with that
+input, not that the hardware works. A case from your own machine is
+welcome. Copy only hardware lines: no host or user names, addresses or
+timezone.
 
 ## Commits
 
