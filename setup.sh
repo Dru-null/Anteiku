@@ -746,14 +746,14 @@ PHOTOS_DEF=""
 if _sel_has immich; then
   h1 "Immich"
   PHOTOS_DEF="${PHOTOS_LOCATION:-./photos}"
-  mkdir -p "$PHOTOS_DEF" 2>/dev/null || true
+  [ "$DRY_RUN" -eq 1 ] || mkdir -p "$PHOTOS_DEF" 2>/dev/null || true
   PHOTOS_DEF="$(abspath "$PHOTOS_DEF")"
   kv "Photo library" "$PHOTOS_DEF"
   note "Kept separate from your media library on purpose: photos are"
   note "irreplaceable, films are not. Back this one up: backup.sh doesn't"
   note "copy it (docs/backups.md, \"Your photos\")."
 
-  P_FREE="$(free_gb "$PHOTOS_DEF" 2>/dev/null || echo 0)"
+  P_FREE="$(free_gb "$(existing_dir "$PHOTOS_DEF")" 2>/dev/null || echo 0)"
   if [ "${P_FREE:-0}" -lt 20 ]; then
     warn "only ${P_FREE} GB free where the photos would go."
     note "A phone library is routinely 50-200 GB. Point PHOTOS_LOCATION"
@@ -846,14 +846,14 @@ h1 "Paths"
 # Paths are stored ABSOLUTE - see abspath() in lib/detect.sh for why.
 APPDATA_DEF="${APPDATA:-./appdata}"
 MEDIA_DEF="${MEDIA_ROOT:-./media}"
-mkdir -p "$APPDATA_DEF" "$MEDIA_DEF" 2>/dev/null || true
+[ "$DRY_RUN" -eq 1 ] || mkdir -p "$APPDATA_DEF" "$MEDIA_DEF" 2>/dev/null || true
 APPDATA_DEF="$(abspath "$APPDATA_DEF")"
 MEDIA_DEF="$(abspath "$MEDIA_DEF")"
 kv "Config (APPDATA)" "$APPDATA_DEF"
 kv "Media (MEDIA_ROOT)" "$MEDIA_DEF"
 
-MEDIA_FS="$(fs_of "$(dirname "$MEDIA_DEF")" 2>/dev/null || echo '?')"
-APP_FS="$(fs_of "$(dirname "$APPDATA_DEF")" 2>/dev/null || echo '?')"
+MEDIA_FS="$(fs_of "$(existing_dir "$(dirname "$MEDIA_DEF")")" 2>/dev/null || echo '?')"
+APP_FS="$(fs_of "$(existing_dir "$(dirname "$APPDATA_DEF")")" 2>/dev/null || echo '?')"
 if [ "$MEDIA_FS" != "$APP_FS" ]; then
   note "Config and media are on different filesystems. That is fine and often"
   note "ideal — configs on SSD, media on a big HDD."

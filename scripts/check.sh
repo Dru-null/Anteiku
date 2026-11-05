@@ -279,12 +279,20 @@ h1 "setup.sh"
 # NTFY_PASS is a canary: secrets must never come from the environment.
 CANARY="canary$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 S="$WORK/repo"
-run_setup() { # log-name args...
-  local log="$WORK/$1.log"; shift
+run_setup() { # log-name [VAR=value...] args...   (a VAR given here wins)
+  local log="$WORK/$1.log" extra=(); shift
+  while [[ "${1:-}" == [A-Z]*=* ]]; do extra+=("$1"); shift; done
   (cd "$S" && env -i "PATH=$PATH" "HOME=$HOME" ${DOCKER_HOST:+"DOCKER_HOST=$DOCKER_HOST"} \
     STACK_PREFIX=chk- COMPOSE_PROJECT_NAME=anteiku-check DOCKER_NETWORK=anteiku-check \
     APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos NTFY_PASS="$CANARY" \
-    ./setup.sh "$@" < /dev/null > "$log" 2>&1)
+    "${extra[@]}" ./setup.sh "$@" < /dev/null > "$log" 2>&1)
+}
+# A dry run writes nothing at all (T-041): every path in the copy, before and after.
+tree_of() { (cd "$S" && find . -mindepth 1 | LC_ALL=C sort); }
+wrote_nothing() { # what before-file
+  local new; new="$(tree_of | LC_ALL=C comm -13 "$2" -)"
+  if [ -n "$new" ]; then err "$1 created files or folders:"; printf '%s\n' "$new" | head -n 10 | indent
+  else ok "$1 wrote nothing ($(wc -l < "$2") paths compared)"; fi
 }
 # Secret values from .env must not appear in any output. Compared, never shown.
 leaks_in() { # log
@@ -306,9 +314,11 @@ step() { # label log rc
 SECRET_KEYS="$(sed -n 's/^SECRET_KEYS="\(.*\)"$/\1/p' setup.sh)"
 secrets() { grep -E "^(${SECRET_KEYS// /|})=" "$S/.env"; }
 
+tree_of > "$WORK/tree-dry1"
 run_setup dry1 --dry-run --yes; rc=$?
 step "first run, --dry-run --yes" dry1 "$rc"
 [ -e "$S/.env" ] && err "--dry-run wrote .env"
+wrote_nothing "first run, --dry-run" "$WORK/tree-dry1"
 
 run_setup yes1 --yes; rc=$?
 step "first run, --yes" yes1 "$rc"
@@ -363,9 +373,20 @@ if [ -f "$S/.env" ]; then
     err "lib/release.sh misreads the retired-service section of setup.sh's output"; printf '%s\n' "$got" | indent
   else ok "update.sh finds the retired-service section ($(wc -l <<< "$got") lines)"; fi
   sum="$(sha256sum < "$S/.env")"
+  tree_of > "$WORK/tree-dry2"
   run_setup dry2 --dry-run --yes; rc=$?
   step "re-run, --dry-run --yes" dry2 "$rc"
   [ "$(sha256sum < "$S/.env")" = "$sum" ] || err "--dry-run changed .env"
+  wrote_nothing "re-run, --dry-run" "$WORK/tree-dry2"
+  # Every service selected (Immich too), all three paths in folders that
+  # don't exist yet: nothing created, and still shown as absolute paths.
+  run_setup dry3 APPDATA=./new/appdata MEDIA_ROOT=./new/media PHOTOS_LOCATION=./new/photos --dry-run --yes; rc=$?
+  step "re-run, --dry-run, paths not created yet" dry3 "$rc"
+  [ "$(sha256sum < "$S/.env")" = "$sum" ] || err "--dry-run changed .env"
+  wrote_nothing "re-run, --dry-run, new paths" "$WORK/tree-dry2"
+  n=0; for d in appdata media photos; do grep -qF "$S/new/$d" "$WORK/dry3.log" && n=$((n+1)); done
+  if [ "$n" -ne 3 ]; then err "--dry-run with new paths showed $n of 3 as absolute paths"
+  else ok "--dry-run resolved 3 of 3 paths that don't exist yet"; fi
   out="$(cd "$S" && env -i "PATH=$PATH" "HOME=$HOME" ${DOCKER_HOST:+"DOCKER_HOST=$DOCKER_HOST"} docker compose config -q 2>&1)"; rc=$?
   if [ "$rc" -ne 0 ] || grep -q 'variable is not set' <<< "$out"; then
     err "compose config on the generated .env"; sort -u <<< "$out" | indent
