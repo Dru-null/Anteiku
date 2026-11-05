@@ -172,7 +172,26 @@ for row in $DATABASES; do
 done
 echo "  database dumps: $DUMPS"
 echo "  also:           .env, compose files, your stack definition"
-echo "  NOT backed up:  ${MEDIA_ROOT} (large and re-obtainable)"
+
+# The stack archive is this folder, so anything else that lives in it
+# would be copied too: setup.sh's defaults put media and photos here,
+# and a destination here would take in every earlier backup. tar names
+# what it reads ./<path>, so each one is left out by its path from here,
+# resolved (setup.sh writes absolute paths), and only when inside.
+HERE="$(pwd -P)"
+inside_here() {   # inside_here <path> -> ./<path from here>, or fails
+  local p
+  [ -n "$1" ] || return 1
+  p="$(realpath -m -- "$1" 2>/dev/null)" || return 1
+  case "$p" in "$HERE"/?*) printf './%s\n' "${p#"$HERE"/}" ;; *) return 1 ;; esac
+}
+SKIP=(); SKIP_ARGS=()
+for p in "${MEDIA_ROOT:-}" "${PHOTOS_LOCATION:-}" "$DEST"; do
+  r="$(inside_here "$p")" || continue
+  SKIP+=("$r"); SKIP_ARGS+=("--exclude=$r")
+done
+[ "${#SKIP[@]}" -gt 0 ] && note "left out of the stack archive (inside this folder): ${SKIP[*]}"
+echo "  NOT backed up:  ${MEDIA_ROOT:-./media} (large and re-obtainable)"
 case " $SERVICES " in *" immich "*)
   echo "  NOT backed up:  ${PHOTOS_LOCATION:-./photos} (your photo files)"
   note "Immich's database is dumped; the photos it points at are not."
@@ -253,7 +272,7 @@ fi
 h1 "Stack definition"
 # Includes .env, which holds every secret. Hence mode 600.
 tar_run tar czf "$OUT/stack.tar.gz" --exclude='./appdata' --exclude='./testdata' \
-  --exclude='./.git' -C . .; rc=$?
+  --exclude='./.git' --anchored --no-wildcards "${SKIP_ARGS[@]}" -C . .; rc=$?
 [ -e "$OUT/stack.tar.gz" ] && chmod 600 "$OUT/stack.tar.gz"
 case "$rc" in
   0) good "stack.tar.gz ($(du -h "$OUT/stack.tar.gz" | cut -f1)) — includes .env, mode 600" ;;
