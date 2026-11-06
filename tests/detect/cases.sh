@@ -6,7 +6,8 @@
 #  first (they change the default machine in run.sh), then checks:
 #
 #    is DET_MEM_MIB 3793        what lib/detect.sh set (also: pick,
-#                               port.<n>, fs_of, fstype_of, free_gb)
+#                               port.<n>, fs_of, fstype_of, free_gb,
+#                               image_store)
 #    env_is COMPOSE_FILE ...    the .env that setup.sh --dry-run shows
 #    env_absent AMD_RENDER_PATH
 #    doctor warn "..."          a whole doctor.sh line (ok|warn|err|note|kv)
@@ -651,7 +652,99 @@ case_disk_ok() {
   disk 512 ext4 /srv
   is fs_of /srv; is fstype_of ext4; is free_gb 512
   doctor kv "This directory" "/srv  (ext4, 512 GB free)"
-  doctor ok "512 GB free here."
+  doctor kv "Images" "/srv  (ext4, 512 GB free; /var/lib/containerd)"
+  doctor ok "512 GB free for images."
+}
+
+# Where images go (T-069): Docker 29's default store keeps them in
+# containerd's root (its config's "root", else /var/lib/containerd); the
+# classic store in "Docker Root Dir". Not where Anteiku was cloned.
+case_disk_images_elsewhere() {   # cloned onto a big media disk, / nearly full
+  disk 800 ext4 /mnt/media; disk_at /var/lib/containerd 8 ext4 /
+  is image_store /var/lib/containerd; is DET_DOCKER_STORE containerd; is DET_DOCKER_ROOT /var/lib/docker
+  doctor kv "This directory" "/mnt/media  (ext4, 800 GB free)"
+  doctor kv "Images" "/  (ext4, 8 GB free; /var/lib/containerd)"
+  doctor err "$D_UNDER10"
+  doctor note "Docker keeps images in /var/lib/containerd, not in this folder."
+  doctor_lacks "800 GB free for images"
+}
+
+case_disk_images_containerd_root() {   # containerd's root moved to a big disk
+  disk 5 ext4 /
+  containerd_conf <<'EOF'
+version = 3
+#root = "/var/lib/old-containerd"
+root = "/data/containerd"
+#state = "/run/containerd"
+EOF
+  disk_at /data/containerd 300 xfs /data
+  is image_store /data/containerd
+  doctor kv "This directory" "/  (ext4, 5 GB free)"
+  doctor kv "Images" "/data  (xfs, 300 GB free; /data/containerd)"
+  doctor ok "300 GB free for images."
+}
+
+case_disk_images_containerd_default() {   # as containerd.io ships it: root commented out
+  containerd_conf <<'EOF'
+disabled_plugins = ["cri"]
+#root = "/var/lib/containerd"
+#state = "/run/containerd"
+[plugins."io.containerd.example"]
+  root = "/not/the/root"
+EOF
+  disk_at /var/lib/containerd 30 ext4 /
+  is image_store /var/lib/containerd
+  doctor warn "30 GB $D_LIBRARY"
+}
+
+case_disk_images_classic() {   # the classic store: images under Docker Root Dir
+  docker_store classic /srv/docker; disk_at /srv/docker 30 xfs /srv; disk_at /var/lib/containerd 4
+  is DET_DOCKER_STORE classic; is image_store /srv/docker
+  doctor kv "Images" "/srv  (xfs, 30 GB free; /srv/docker)"
+  doctor warn "30 GB $D_LIBRARY"
+}
+
+case_disk_images_docker_down() {   # can't ask Docker: say so, judge this folder
+  docker_is down; disk 6
+  is image_store ""
+  doctor kv "Images" "unknown: Docker is not reachable"
+  doctor note "Judged on this folder instead. Docker keeps images in its own folder,"
+  doctor err "$D_UNDER10"
+}
+
+case_disk_images_docker_absent() {
+  docker_is absent
+  is image_store ""
+  doctor kv "Images" "unknown: Docker is not installed"
+  doctor ok "200 GB free for images."
+}
+
+case_disk_images_rootless() {   # rootless Docker runs its own containerd: not read
+  docker_is rootless; disk_at /var/lib/containerd 8
+  is image_store ""
+  doctor kv "Images" "unknown: rootless Docker's image store is not read"
+  doctor ok "200 GB free for images."
+}
+
+case_disk_images_not_here() {   # Docker Root Dir isn't on this machine (a remote daemon)
+  docker_store classic /var/lib/docker; no_path /var/lib/docker
+  is image_store /var/lib/docker
+  doctor kv "Images" "unknown: /var/lib/docker is not on this machine"
+}
+
+# df counts 1K blocks; GB here are decimal, floored (T-069). GNU df's own
+# --block-size rounds up, and 1G is GiB: 9.5 GB used to read "10 GB".
+case_disk_gb_not_gib() {
+  disk_kb 9667969   # 9.9 GB, 9.22 GiB
+  is free_gb 9
+  doctor kv "This directory" "/  (ext4, 9 GB free)"
+  doctor err "$D_UNDER10"
+}
+
+case_disk_gb_edge() {
+  disk_kb 9765625   # exactly 10 GB
+  is free_gb 10
+  doctor warn "10 GB $D_STARTER"
 }
 
 # Image sizes as a default Docker 29 install stores them (T-068): the
@@ -700,7 +793,7 @@ case_disk_below_50() {
 
 case_disk_edge_50() {
   disk 50
-  doctor ok "50 GB free here."
+  doctor ok "50 GB free for images."
 }
 
 # ------------------------------------------------------------ other tools
