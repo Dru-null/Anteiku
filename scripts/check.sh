@@ -37,7 +37,7 @@ fi
 TUI=0
 for a in "$@"; do case "$a" in
   --tui) TUI=1 ;;
-  -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+  -h|--help) sed -n '2,/^# ===/s/^# \{0,2\}//p' "scripts/${0##*/}"; exit 0 ;;
   *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
 esac; done
 
@@ -169,6 +169,29 @@ elif [ "$got" != "9.1.1:|Do this.|" ]; then err "lib/release.sh misreads Action 
 else ok "CHANGELOG: $n_rel release(s), each with Action needed; update.sh reads them"; fi
 k_py="$(sed -n 's/^PYTHON_IMAGE="\(.*\)"$/\1/p' scripts/kuma-bootstrap.sh)"
 [ "$k_py" = "$PYTHON_IMAGE" ] || err "kuma-bootstrap.sh and check.sh use different Python images (${k_py:-none} vs $PYTHON_IMAGE)"
+
+# --help prints the script's comment header and nothing else: no code
+# after it, nothing cut off, and the same from another folder (the
+# scripts cd before they read themselves). Every script with --help.
+n=0; c=0
+for f in "${SH[@]}"; do
+  grep -q -- '-h|--help)' "$f" || continue
+  for how in "./$f" "../$f"; do
+    c=$((c+1))
+    if [ "$how" = "./$f" ]; then dir="$ROOT"; from="the repo"; else dir="$ROOT/lib"; from="lib/"; fi
+    out="$( cd "$dir" && bash "$how" --help 2>"$WORK/help.err" )"; rc=$?
+    bad=""
+    [ "$rc" -eq 0 ] || bad="$bad exit $rc;"
+    [ -s "$WORK/help.err" ] && bad="$bad stderr: $(head -n 1 "$WORK/help.err");"
+    grep -qF "${f##*/} —" <<< "$out" || bad="$bad no '${f##*/} —' title;"
+    code="$(grep -cE '^(set |cd |\. |shellcheck )' <<< "$out")"
+    [ "$code" -eq 0 ] || bad="$bad $code line(s) of code;"
+    [[ "$(tail -n 1 <<< "$out")" =~ ^=+$ ]] || bad="$bad last line is not the closing ==== rule;"
+    [ -z "$bad" ] || { err "--help: $how (from $from):$bad"; n=$((n+1)); }
+  done
+done
+if [ "$c" -eq 0 ]; then err "--help: no script with --help found"
+elif [ "$n" -eq 0 ]; then ok "--help: $((c / 2)) scripts print their header only, from here and from lib/"; fi
 
 # ------------------------------------------------------------ leaks
 h1 "Leaks"

@@ -20,7 +20,7 @@ cd "$(dirname "$0")/.." || exit 1
 DRY_RUN=0
 for a in "$@"; do case "$a" in
   --dry-run) DRY_RUN=1 ;;
-  -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+  -h|--help) sed -n '2,/^# ===/s/^# \{0,2\}//p' "scripts/${0##*/}"; exit 0 ;;
   *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
 esac; done
 

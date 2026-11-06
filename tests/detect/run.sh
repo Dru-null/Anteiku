@@ -34,7 +34,7 @@ QUIET=0; LIST=0; ONLY=()
 for a in "$@"; do case "$a" in
   -q) QUIET=1 ;;
   --list) LIST=1 ;;
-  -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+  -h|--help) sed -n '2,/^# ===/s/^# \{0,2\}//p' "tests/detect/${0##*/}"; exit 0 ;;
   -*) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
   *) ONLY+=("$a") ;;
 esac; done
