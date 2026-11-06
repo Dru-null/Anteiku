@@ -163,6 +163,22 @@ sudo chown -R 1000:1000 /path/to/your/media    # your PUID:PGID
 This bites most often on a second-hand drive, or one that previously held
 files written by root. `setup.sh` checks for it and warns before you start.
 
+**exFAT and FAT disks have no hardlinks and no owners.** Every import is a
+full copy, and the `chown` above fails, even with `sudo`: every file
+belongs to whoever mounted the disk. Mount it as your user instead (the
+same options go in its `/etc/fstab` line):
+
+```bash
+sudo mount -o uid=1000,gid=1000 /dev/sdX1 /path/to/your/media    # your PUID:PGID
+```
+
+NTFS depends on the driver `df -T` names. `ntfs3` (the kernel's) kept
+hardlinks and owners in our tests. `fuseblk` (ntfs-3g) keeps hardlinks,
+but `chown` changes nothing: mount it with `uid=`/`gid=` as above. Debian
+12's kernel has no `ntfs3`. For a library, a Linux filesystem (ext4, xfs,
+btrfs) is the safe choice; reformatting erases the disk. `doctor.sh` and
+`setup.sh` name the filesystem and warn.
+
 **Jellyseerr and Overseerr are discontinued.** Both were folded into
 **Seerr** in February 2026, and most guides online still name the old
 ones. If you run Jellyseerr today, the `latest` tag now literally reports

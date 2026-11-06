@@ -38,6 +38,17 @@ interest. How to update: [docs/updating.md](docs/updating.md).
 - Without cron, `setup.sh`'s last step says to install it before
   `./update.sh --schedule`, with the command for your distro. It used to
   offer the command, which then failed with "crontab not found".
+- `doctor.sh` and `setup.sh` warn about the media disk's filesystem:
+  exFAT and FAT have no hardlinks and no owners, NTFS through ntfs-3g
+  no owners. Where `chown` can't work they give the `uid=`/`gid=` mount
+  option instead. `doctor.sh` reads `MEDIA_ROOT` from the shell or
+  `.env`. [stacks/arr.md](stacks/arr.md#traps)
+- `setup.sh` names each folder it couldn't create, with the reason, and
+  no longer says they all exist. Its "different filesystems" note
+  compares the folders themselves, so a media root that is its own
+  mount counts.
+- On a full disk `setup.sh` stops and leaves `.env` as it was. A re-run
+  used to replace it with an empty file, passwords included.
 
 ---
 
