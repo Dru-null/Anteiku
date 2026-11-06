@@ -17,6 +17,9 @@
 #            with "Action needed", never one less than 3 days old
 #    off     nothing
 #  It contacts GitHub only, and sends nothing about you.
+#  Images an update replaced stay until you remove them: after an
+#  update, and with --check, it lists those of earlier releases and
+#  prints the command. It never removes an image itself.
 # ============================================================
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
@@ -36,7 +39,7 @@ main() {
     --unschedule) MODE=unschedule ;;
     --yes|-y)     ASSUME_YES=1 ;;
     --no-backup)  NO_BACKUP=1 ;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+    -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
     *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
   esac; done
 
@@ -63,6 +66,7 @@ check_run() {
   local old changes action
   old="$(release_current)"
   kv "This install" "${old:-unknown}"
+  report_old_images "$(way_back_ref)"
   have curl || { err "curl is not installed: it asks GitHub for the newest release."; note "$(install_hint curl)"; exit 2; }
   if ! release_latest; then err "Could not ask GitHub for the newest release."; exit 2; fi
   kv "Newest release" "$REL_TAG"
@@ -81,6 +85,43 @@ check_run() {
   note "Changelog: $ANTEIKU_RELEASES/tag/$REL_TAG"
   note "To update:  ./update.sh"
   exit 1
+}
+
+# ------------------------------------------------------------ old images
+# Images earlier releases pinned and an update replaced (T-070): listed
+# with the command that removes them, never removed here. Kept: this
+# release's, the way back's, an override's, and any a container uses
+# (old_images, lib/release.sh). docker image rm without -f refuses an
+# image a container still uses.
+OLD_IMG_CMD=""; OLD_IMG_SIZE=""
+
+# The way back: where the last successful update came from, else the
+# release before this one.
+way_back_ref() {
+  local r; r="$(head -n 1 "$LOG_DIR/previous" 2>/dev/null)"
+  if [[ "$r" =~ ^[0-9a-f]{7,40}$ ]] && git rev-parse -q --verify "$r^{commit}" >/dev/null 2>&1; then
+    echo "$r"; return 0
+  fi
+  r="$(release_current)" && [ -n "$r" ] \
+    && git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' "$r^" 2>/dev/null
+  return 0
+}
+
+report_old_images() {   # way-back ref [its name]
+  local list i s label
+  OLD_IMG_CMD=""; OLD_IMG_SIZE=""
+  if ! have docker || ! have git; then return 0; fi
+  if ! list="$(old_images "$1")" || [ -z "$list" ]; then return 0; fi
+  label="${2:-$(git describe --tags --exact-match "$1" 2>/dev/null || echo "$1")}"
+  OLD_IMG_SIZE="$(size_total <<< "$list")"
+  OLD_IMG_CMD="docker image rm $(cut -f1 <<< "$list" | paste -sd' ')"
+  echo
+  info "Images from earlier releases that no container uses: $(grep -c . <<< "$list"), up to $OLD_IMG_SIZE."
+  while IFS=$'\t' read -r i s; do note "  - $i  ($s)"; done <<< "$list"
+  if [ -n "$label" ]; then note "Kept: this release's and those of $label, the way back."
+  else note "Kept: this release's."; fi
+  note "Not removed for you. To free the space:"
+  printf '       %s%s%s\n' "$C_B$C_INF" "$OLD_IMG_CMD" "$C_RST"
 }
 
 # ------------------------------------------------------------ update
@@ -240,7 +281,12 @@ Nothing was changed."
   while IFS= read -r l; do printf '       %s%s%s\n' "$C_B$C_INF" "$l" "$C_RST"; done < <(rollback_cmds)
   [ -n "$BACKUP_AT" ] && note "Databases: restore from $BACKUP_AT (docs/backups.md)."
   [ -n "$RETIRED" ] && warn "Not deleted for you: see \"No longer part of Anteiku\" above."
+  echo "$OLD_REF" > "$LOG_DIR/previous"   # the way back, for --check
+  report_old_images "$OLD_REF" "${OLD:-$OLD_REF}"
   RESULT="$(docker compose ps --format '{{.Name}} {{.State}}' 2>/dev/null)"
+  [ -n "$OLD_IMG_CMD" ] && RESULT="$RESULT
+Images from earlier releases, up to $OLD_IMG_SIZE, not removed. To free the space:
+$OLD_IMG_CMD"
   return 0
 }
 

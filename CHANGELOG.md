@@ -10,6 +10,21 @@ interest. How to update: [docs/updating.md](docs/updating.md).
 
 ---
 
+## Unreleased
+
+### Changed
+
+- `update.sh` lists the images earlier releases left behind (no
+  container uses them, neither this release nor the way back pins
+  them), with their sizes and the `docker image rm` command, after an
+  update and with `--check`. It removes nothing.
+  [docs/updating.md](docs/updating.md#old-images)
+- `doctor.sh` checks free space where Docker keeps images, not in the
+  install folder, and says so when it can't tell. Sizes are GB, rounded
+  down; they were GiB, rounded up.
+
+---
+
 ## 2026.10.1 — 2026-10-30
 
 Adds `update.sh`, removes Diun, and moves two pins.

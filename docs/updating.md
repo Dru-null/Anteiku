@@ -122,6 +122,8 @@ What `./update.sh` does, in order, stopping at the first problem:
    shows setup's "No longer part of Anteiku" notice: the `docker rm -f`
    for its container and where its data is. Nothing is deleted for you.
 6. `docker compose pull`, `docker compose up -d`, and shows the result.
+7. Lists the images earlier releases left behind, with the command that
+   removes them ([below](#old-images)). It removes nothing itself.
 
 If a step fails after the files moved, it prints the exact commands to
 go back, starting with `git reset --keep <where you were>`. If the
@@ -129,6 +131,40 @@ release removed a service you have, they include a `sed` line that puts
 it back in `COMPOSE_PROFILES`: the old release still has it, and
 selected again it's managed again. Those don't roll a database back: an app that already converted its database needs
 the backup from step 3 ([`backups.md`](backups.md)).
+
+## Old images
+
+An update pulls the new images next to the old ones, and the old ones
+stay. Nothing in this kit removes an image. On Docker 29's default
+store the starter set's images take about 4 GB; in testing, a release
+that rebuilt two of them added about 0.6 GB. Every release that moves a
+version adds its new images on top.
+
+After an update, `update.sh` lists the images that
+
+- an earlier Anteiku release pinned,
+- are not this release's, nor those of the release you came from (the
+  way back above uses them),
+- no container uses, of any project, running or stopped,
+- no `*_VERSION` override in `.env` selects,
+
+with their sizes and one command:
+
+```bash
+docker image rm lscr.io/linuxserver/sonarr:4.0.20.3014-ls1 ...
+```
+
+Run it once the update has settled. Without `-f`, Docker refuses to
+remove an image that a container still uses. `./update.sh --check`
+lists them again any time; with `UPDATE_MODE=auto` they are in the
+message after the update. Going back further than one release after
+removing them: `docker compose up -d` downloads them again.
+
+Not `docker image prune -a`: it removes every image no container is
+using, including other projects' on the same machine.
+
+`./doctor.sh` shows the free space where Docker keeps images, which is
+often not the disk this folder is on.
 
 ## Being told, or updating by itself
 
