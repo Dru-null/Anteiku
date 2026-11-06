@@ -25,6 +25,8 @@ interest. How to update: [docs/updating.md](docs/updating.md).
 - `setup.sh` says when Docker is missing or not reachable, and what it
   couldn't check then. A re-run of an install in that state stops and
   writes nothing: its own ports would have moved.
+- `doctor.sh` and `setup.sh` call it "the Compose plugin", not "Compose
+  v2": the plugin's own versions are 5.x now.
 
 ---
 

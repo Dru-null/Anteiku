@@ -85,6 +85,7 @@ detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker
 say_compose_missing() {
   compose_missing || return 0
   warn "$MSG_COMPOSE_MISSING"
+  note "$MSG_COMPOSE_OLD"
   note "$MSG_COMPOSE_INSTALL"
   note "Until it is installed, every 'docker compose' command fails."
   note "This configuration doesn't depend on it: no need to re-run after."

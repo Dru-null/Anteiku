@@ -98,10 +98,11 @@ if [ -z "$DET_DOCKER_VER" ]; then
 else
   kv "Engine" "$DET_DOCKER_VER"
   if [ -n "$DET_COMPOSE_VER" ]; then
-    kv "Compose" "$DET_COMPOSE_VER (v2 plugin)"
-    ok "Compose v2 present — 'docker compose', the syntax this repo uses."
+    kv "Compose" "$DET_COMPOSE_VER (plugin)"
+    ok "$MSG_COMPOSE_OK"
   else
     err "$MSG_COMPOSE_MISSING"
+    note "$MSG_COMPOSE_OLD"
     note "$MSG_COMPOSE_INSTALL"
   fi
   if [ "$DET_DOCKER_OK" -eq 1 ]; then

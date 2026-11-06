@@ -56,6 +56,8 @@ case_baseline() {   # the default machine, unchanged
   doctor kv User "uid=$RUN_UID gid=$RUN_GID"
   doctor ok "64-bit x86 — every image in this repo has a build for it."
   doctor ok "Docker daemon is reachable."
+  doctor ok "Compose plugin present — 'docker compose', the syntax this repo uses."
+  doctor kv Compose "2.40.3 (plugin)"; doctor_lacks "v2"   # plugin versions aren't "v2" (T-077)
   setup ok "No container name collisions."; setup ok "Network name is free of conflicts."
   setup_lacks "Not checked without Docker"
   doctor ok "All default ports for the arr stack are free."
@@ -68,7 +70,7 @@ case_baseline() {   # the default machine, unchanged
   env_absent INTEL_RENDER_PATH; env_absent AMD_RENDER_PATH
   setup ok "No usable GPU found — CPU transcoding."
   setup_lacks "NVIDIA"
-  setup_lacks "Compose v2 plugin missing"
+  setup_lacks "Compose plugin ('docker compose') is missing"
 }
 
 # ------------------------------------------------------------ GPU
@@ -506,7 +508,7 @@ case_docker_absent() {
   docker_is absent
   is DET_DOCKER_VER ""; is DET_DOCKER_OK 0
   doctor err "Docker is not installed. Nothing here can run without it."
-  setup_lacks "Compose v2 plugin missing"   # no docker at all: not a plugin problem (T-073)
+  setup_lacks "Compose plugin ('docker compose') is missing"   # no docker at all: not a plugin problem (T-073)
   # setup.sh writes the config, says so in doctor's words, and doesn't
   # claim checks it couldn't make (T-078).
   setup warn "Docker is not installed. Nothing here can run without it."
@@ -569,11 +571,15 @@ ENV
 case_docker_no_compose() {   # distro docker.io without the compose plugin
   docker_is no-compose
   is DET_COMPOSE_VER ""
-  doctor err "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+  doctor err "The Compose plugin ('docker compose') is missing."
+  doctor note "The old 'docker-compose' script will not work here."
   doctor note "Install the plugin: https://docs.docker.com/compose/install/"
+  doctor_lacks "v2"   # plugin versions aren't "v2" (T-077)
   # setup.sh still writes the config (T-073): it doesn't need compose, and
   # says so before the steps that do.
-  setup warn "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+  setup warn "The Compose plugin ('docker compose') is missing."
+  setup note "The old 'docker-compose' script will not work here."
+  setup_lacks "v2 plugin"
   setup note "Install the plugin: https://docs.docker.com/compose/install/"
   setup note "Until it is installed, every 'docker compose' command fails."
   env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
@@ -582,8 +588,8 @@ case_docker_no_compose() {   # distro docker.io without the compose plugin
 case_docker_down_no_compose() {   # the plugin check needs no daemon
   docker_is down no-compose
   is DET_COMPOSE_VER ""; is DET_DOCKER_OK 0
-  doctor err "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
-  setup warn "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+  doctor err "The Compose plugin ('docker compose') is missing."
+  setup warn "The Compose plugin ('docker compose') is missing."
 }
 
 case_docker_rootless() {
@@ -592,7 +598,7 @@ case_docker_rootless() {
   doctor warn "Rootless Docker detected — this path is NOT maintainer-tested."
   doctor note "From Docker's docs: ports below 1024 will not bind, and device"
   doctor_lacks "Everything else works"
-  doctor kv Engine "29.0.1"; doctor kv Compose "2.40.3 (v2 plugin)"
+  doctor kv Engine "29.0.1"; doctor kv Compose "2.40.3 (plugin)"
 }
 
 # ------------------------------------------------------------ Tailscale

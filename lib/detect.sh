@@ -346,9 +346,13 @@ docker_fix_notes() {
   fi
 }
 
-# Docker without the Compose v2 plugin (a distro's docker.io): doctor's
-# blocker and setup.sh's warning say it in the same words (T-073).
-MSG_COMPOSE_MISSING="Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+# Docker without the Compose plugin (a distro's docker.io): doctor's
+# blocker and setup.sh's warning say it in the same words (T-073). No
+# generation number: "v2" named the plugin against v1's docker-compose
+# script, and the plugin's own versions are 5.x now (T-077).
+MSG_COMPOSE_OK="Compose plugin present — 'docker compose', the syntax this repo uses."
+MSG_COMPOSE_MISSING="The Compose plugin ('docker compose') is missing."
+MSG_COMPOSE_OLD="The old 'docker-compose' script will not work here."
 MSG_COMPOSE_INSTALL="Install the plugin: https://docs.docker.com/compose/install/"
 # compose_missing -> 0 if Docker is installed and its compose plugin isn't.
 compose_missing() { [ -n "$DET_DOCKER_VER" ] && [ -z "$DET_COMPOSE_VER" ]; }
