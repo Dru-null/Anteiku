@@ -382,6 +382,20 @@ who_has_port() {
   echo "$out"
 }
 
+# port_held_by_project <port> <project> [service] -> the compose service of
+# <project>'s running container that publishes <port> (a service given:
+# only that one). 1 if none, or Docker can't be asked. setup.sh uses it so
+# a re-run doesn't move a service off its own port; doctor.sh so it
+# doesn't call the install's own containers a clash (T-074).
+port_held_by_project() {
+  [ "${DET_DOCKER_OK:-0}" -eq 1 ] && [ -n "$2" ] || return 1
+  local by=(--filter "label=com.docker.compose.project=$2") s
+  [ -n "${3:-}" ] && by+=(--filter "label=com.docker.compose.service=$3")
+  s="$(docker ps "${by[@]}" --format '{{.Label "com.docker.compose.service"}} {{.Ports}}' 2>/dev/null \
+       | grep -E "[:.]$1->" | head -n 1 | cut -d' ' -f1)"
+  [ -n "$s" ] && echo "$s"
+}
+
 # --- host tools -------------------------------------------------------
 # Optional tools, what each is for, and its package per family:
 #   tool|debian package|fedora package|arch package

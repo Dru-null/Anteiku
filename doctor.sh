@@ -196,7 +196,15 @@ note "stream to several devices at once, or remotely over limited upload."
 # ----------------------------------------------------------------- ports
 h1 "Port availability"
 PORTS="9696:Prowlarr 8181:qBittorrent 8989:Sonarr 7878:Radarr 8686:Lidarr 5299:LazyLibrarian 6767:Bazarr 5055:Seerr"
-CLASH=0
+CLASH=0; OWN=0
+# An install's own containers hold its own ports: no clash (T-074). Its
+# compose project as compose reads it: the shell first, then .env, then
+# setup.sh's default. No .env, no install: nothing here is "own".
+OWN_PROJECT=""
+if [ -r .env ]; then
+  OWN_PROJECT="${COMPOSE_PROJECT_NAME:-$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env | tail -n 1)}"
+  OWN_PROJECT="${OWN_PROJECT:-anteiku}"
+fi
 if ! ports_checkable; then
   warn "Can't check the ports: neither ss nor netstat is installed."
   note "setup.sh will keep the default ports without knowing whether"
@@ -205,20 +213,33 @@ else
   for entry in $PORTS; do
     p="${entry%%:*}"; name="${entry##*:}"
     if port_in_use "$p"; then
-      warn "$p ($name) is already in use by: $(who_has_port "$p")"
-      CLASH=$((CLASH+1))
+      if svc="$(port_held_by_project "$p" "$OWN_PROJECT")"; then
+        info "$p ($name) is in use by Anteiku's $svc."
+        OWN=$((OWN+1))
+      else
+        warn "$p ($name) is already in use by: $(who_has_port "$p")"
+        CLASH=$((CLASH+1))
+      fi
     fi
   done
-  [ "$CLASH" -eq 0 ] && ok "All default ports for the arr stack are free."
+  if [ "$CLASH" -eq 0 ] && [ "$OWN" -gt 0 ]; then
+    ok "No clashes: the default ports in use are this install's own."
+  elif [ "$CLASH" -eq 0 ]; then
+    ok "All default ports for the arr stack are free."
+  fi
   [ "$CLASH" -gt 0 ] && note "setup.sh can shift these. Nothing is forced to a fixed port."
 fi
 
 if port_in_use 53; then   # 2 (can't tell) is not "taken": the warning above covers it
   echo
-  warn "Port 53 is taken by: $(who_has_port 53)"
-  note "This is THE classic Pi-hole faceplant. On most Ubuntu/Debian boxes it"
-  note "is systemd-resolved holding 53 for local DNS. Pi-hole cannot start"
-  note "until you free it. Not a problem at all unless you want Pi-hole."
+  if svc="$(port_held_by_project 53 "$OWN_PROJECT")"; then
+    info "Port 53 is in use by Anteiku's $svc."
+  else
+    warn "Port 53 is taken by: $(who_has_port 53)"
+    note "This is THE classic Pi-hole faceplant. On most Ubuntu/Debian boxes it"
+    note "is systemd-resolved holding 53 for local DNS. Pi-hole cannot start"
+    note "until you free it. Not a problem at all unless you want Pi-hole."
+  fi
 fi
 
 # ------------------------------------------------------------------ disk

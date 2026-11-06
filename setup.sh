@@ -644,12 +644,7 @@ svc_of() { case "$1" in immich) echo immich-server ;; *) echo "$1" ;; esac; }
 # is that service's own port from a previous run, not a clash. Without
 # this, re-running setup.sh on a running stack walks every service one
 # port further each time.
-held_by_us() {
-  [ "$DET_DOCKER_OK" -eq 1 ] || return 1
-  docker ps --filter "label=com.docker.compose.project=${MY_PROJECT}" \
-            --filter "label=com.docker.compose.service=$2" \
-            --format '{{.Ports}}' 2>/dev/null | grep -qE "[:.]$1->"
-}
+held_by_us() { port_held_by_project "$1" "$MY_PROJECT" "$2" >/dev/null; }
 usable() {   # port service
   [ -z "${PORT_CLAIMED[$1]:-}" ] || return 1
   [ "$PORTS_CHECKED" -eq 1 ] || return 0   # unchecked: decided above
