@@ -14,6 +14,14 @@ interest. How to update: [docs/updating.md](docs/updating.md).
 
 ### Changed
 
+- `doctor.sh` shows memory to one decimal and compares it in MiB: "Under
+  4 GiB" below 3584 MiB, "tight" below 7168 MiB, so 4 and 8 GB machines
+  get what the README says. It used to round down to whole GiB, and a
+  4 GB machine read 3. The CPU count says "CPUs", not "cores".
+- `doctor.sh`'s disk tiers fit what Docker 29 stores by default: under
+  10 GB free is an error, 10 to 24 GB is enough for the starter set but
+  not every service, 25 to 49 GB not for a library, 50 GB and up fine.
+  It used to call 10 GB enough for every image.
 - `update.sh` lists the images earlier releases left behind (no
   container uses them, neither this release nor the way back pins
   them), with their sizes and the `docker image rm` command, after an
