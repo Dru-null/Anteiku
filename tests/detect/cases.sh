@@ -929,6 +929,127 @@ case_disk_starter_only() {
   doctor_lacks "not a library"
 }
 
+# The media filesystem (T-045). What each type can't do was tried in a VM:
+# exFAT and FAT have no hardlinks and no owners, NTFS through
+# ntfs-3g (fuseblk) no owners. The folders are real ones in the case's
+# temp dir; df's stand-in gives them their type and mount.
+S_NOLINK="no hardlinks, so every import is a full copy."
+S_NOOWN="which keeps no Linux owners: chown can't fix it."
+S_MOUNT="uid=1000,gid=1000 (your PUID/PGID) so the containers can write."
+S_DIFF="Config and media are on different filesystems. That is fine and often"
+case_storage_media_exfat() {   # a USB disk as it comes, mounted at its own folder
+  user_ids 1000 1000; mkdir -p "$FX/usb"
+  disk_at "$FX/usb" 900 exfat "$FX/usb"; setup_env "MEDIA_ROOT=$FX/usb/media"; shell_env "MEDIA_ROOT=$FX/usb/media"
+  setup warn "$FX/usb/media is on exfat: $S_NOLINK"
+  setup warn "$FX/usb/media is on exfat, $S_NOOWN"
+  setup note "$S_MOUNT"
+  setup note "$S_DIFF"
+  doctor kv "Media (MEDIA_ROOT)" "$FX/usb/media  ($FX/usb, exfat, 900 GB free)"
+  doctor info "$FX/usb/media isn't there yet; setup.sh creates it on $FX/usb."
+  doctor warn "$FX/usb/media is on exfat: $S_NOLINK"
+  doctor warn "$FX/usb/media is on exfat, $S_NOOWN"
+  doctor_lacks "This directory is on"
+}
+
+case_storage_media_vfat() {
+  user_ids 1000 1000; mkdir -p "$FX/v/media"
+  disk_at "$FX/v" 30 vfat "$FX/v"; setup_env "MEDIA_ROOT=$FX/v/media"
+  setup warn "$FX/v/media is on vfat: $S_NOLINK"
+  setup warn "$FX/v/media is on vfat, $S_NOOWN"
+}
+
+case_storage_media_ntfs3g() {   # ntfs-3g: hardlinks work, owners don't
+  user_ids 1000 1000; mkdir -p "$FX/win"
+  disk_at "$FX/win" 400 fuseblk "$FX/win"; setup_env "MEDIA_ROOT=$FX/win/media"; shell_env "MEDIA_ROOT=$FX/win/media"
+  setup warn "$FX/win/media is on fuseblk (FUSE, e.g. NTFS through ntfs-3g), $S_NOOWN"
+  setup note "Hardlinks: NTFS through ntfs-3g has them, exFAT through FUSE doesn't."
+  setup_lacks "no hardlinks"
+  doctor warn "$FX/win/media is on fuseblk (FUSE, e.g. NTFS through ntfs-3g), $S_NOOWN"
+  doctor_lacks "no hardlinks"
+}
+
+case_storage_media_ntfs3() {   # the kernel's NTFS driver kept hardlinks and owners (T-045)
+  mkdir -p "$FX/win"; disk_at "$FX/win" 400 ntfs3 "$FX/win"; setup_env "MEDIA_ROOT=$FX/win/media"
+  setup_lacks "no hardlinks"; setup_lacks "keeps no Linux owners"; setup_lacks "Hardlinks: NTFS"
+}
+
+case_storage_media_linux() {   # xfs on its own mount: nothing to warn about
+  mkdir -p "$FX/data/media"
+  disk_at "$FX/data" 900 xfs "$FX/data"; setup_env "MEDIA_ROOT=$FX/data/media"; shell_env "MEDIA_ROOT=$FX/data/media"
+  setup_lacks "no hardlinks"; setup_lacks "keeps no Linux owners"
+  doctor kv "Media (MEDIA_ROOT)" "$FX/data/media  ($FX/data, xfs, 900 GB free)"
+  doctor_lacks "no hardlinks"; doctor_lacks "keeps no Linux owners"; doctor_lacks "isn't there"
+}
+
+# Before T-045 the note compared the parent folders, so a MEDIA_ROOT that is its
+# own mount (/mnt/media) read as the same filesystem as the config.
+case_storage_media_own_mount() {
+  mkdir -p "$FX/mnt/media"; disk_at "$FX/mnt/media" 500 ext4 "$FX/mnt/media"
+  setup_env "MEDIA_ROOT=$FX/mnt/media"; shell_env "MEDIA_ROOT=$FX/mnt/media"
+  setup note "$S_DIFF"
+  doctor kv "Media (MEDIA_ROOT)" "$FX/mnt/media  ($FX/mnt/media, ext4, 500 GB free)"
+}
+
+case_storage_same_fs() {   # the default: everything in the checkout, one filesystem
+  setup_lacks "$S_DIFF"; doctor_lacks "Media (MEDIA_ROOT)"
+}
+
+case_storage_here_exfat() {   # Anteiku cloned onto the USB disk: config and media there
+  user_ids 1000 1000; disk 900 exfat /media/usb
+  doctor warn "This directory is on exfat: $S_NOLINK"
+  doctor warn "This directory is on exfat, $S_NOOWN"
+  setup_lacks "$S_DIFF"
+  setup_lacks "/appdata is on exfat"   # one filesystem, said once (for the media root)
+}
+
+case_storage_here_exfat_media_ext4() {   # cloned onto exFAT, the library on ext4
+  user_ids 1000 1000; disk 900 exfat /media/usb; mkdir -p "$FX/data"
+  disk_at "$FX/data" 900 ext4 "$FX/data"; shell_env "MEDIA_ROOT=$FX/data/media"
+  doctor warn "This directory is on exfat, $S_NOOWN"
+  doctor_lacks "This directory is on exfat: no hardlinks"
+  doctor_lacks "$FX/data/media is on"
+}
+
+case_storage_config_exfat() {   # APPDATA on exFAT: owners matter there, hardlinks don't
+  user_ids 1000 1000; mkdir -p "$FX/usb"
+  disk_at "$FX/usb" 900 exfat "$FX/usb"; setup_env "APPDATA=$FX/usb/appdata"
+  setup warn "$FX/usb/appdata is on exfat, $S_NOOWN"
+  setup_lacks "$FX/usb/appdata is on exfat: no hardlinks"
+}
+
+case_storage_owner_exfat() {   # owned by someone else on exFAT: chown is the wrong advice
+  user_ids 4242 4242; mkdir -p "$FX/usb/media"
+  disk_at "$FX/usb" 900 exfat "$FX/usb"; setup_env "MEDIA_ROOT=$FX/usb/media"
+  setup note "  mount it with uid=4242,gid=4242 (chown can't, on exfat)"
+  setup_lacks "sudo chown -R 4242:4242 $FX/usb/media"
+  real note "  sudo chown -R 4242:4242 $FX/real/appdata"
+  real note "  on exfat: mount the disk with uid=4242,gid=4242 (chown can't change owners there)"
+  real_lacks "sudo chown -R 4242:4242 $FX/real/appdata $FX/usb/media"
+}
+
+case_storage_media_unwritable() {   # it exists, you can't write to it
+  locked_dir "$FX/media"; setup_env "MEDIA_ROOT=$FX/media"; shell_env "MEDIA_ROOT=$FX/media"
+  setup warn "you can't write to $FX/media (a read-only mount, or another owner)."
+  setup_lacks "media root ownership matches"
+  doctor warn "you can't write to $FX/media (a read-only mount, or another owner)."
+}
+
+case_storage_media_cant_create() {   # missing, and its parent is locked
+  locked_dir "$FX/mnt"; setup_env "MEDIA_ROOT=$FX/mnt/usb/media"; shell_env "MEDIA_ROOT=$FX/mnt/usb/media"
+  setup warn "$FX/mnt/usb/media can't be created: you can't write to $FX/mnt."
+  doctor warn "$FX/mnt/usb/media isn't there, and you can't create it: you can't write to $FX/mnt."
+  real warn "could not create $FX/mnt/usb/media: Permission denied"
+  real warn "1 directory(ies) could not be created (the reasons are above)."
+  real_lacks "could not create $FX/mnt/usb/media/"
+  real_lacks "all data directories exist"
+}
+
+case_storage_media_from_env() {   # an install: doctor reads MEDIA_ROOT from .env
+  installed; mkdir -p "$FX/usb/media"; disk_at "$FX/usb" 900 exfat "$FX/usb"
+  install_env <<< "MEDIA_ROOT=$FX/usb/media"
+  doctor kv "Media (MEDIA_ROOT)" "$FX/usb/media  ($FX/usb, exfat, 900 GB free)"
+}
+
 case_disk_edge_25() {
   disk 25
   doctor warn "25 GB $D_LIBRARY"
