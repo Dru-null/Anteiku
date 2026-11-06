@@ -12,7 +12,9 @@
 #  ANTEIKU_DETECT_ROOT), and stand-ins for lspci, ss, docker and the
 #  other tools it calls, first on PATH. Then the real lib/detect.sh,
 #  doctor.sh and setup.sh --dry-run --yes run against it, and the case
-#  checks what they made of it.
+#  checks what they made of it. A real setup.sh --yes (subject
+#  setup_real, the only one that reaches its "Next" steps) runs in a
+#  copy of the repo inside the case's temp dir.
 #
 #  Results are Mocked: what the scripts do with that input, never that
 #  the hardware works. A check marked "current" records today's output
@@ -32,7 +34,7 @@ QUIET=0; LIST=0; ONLY=()
 for a in "$@"; do case "$a" in
   -q) QUIET=1 ;;
   --list) LIST=1 ;;
-  -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+  -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
   -*) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
   *) ONLY+=("$a") ;;
 esac; done
@@ -64,7 +66,8 @@ trap 'rm -rf "$WORK"' EXIT
 # Tools a case controls. None of them is reachable from the real PATH:
 # a case gets a stand-in, or nothing (a "missing tool" case).
 # crontab, curl and git are update.sh's, not detection's: never reachable, so
-# no case can touch the host's crontab or the network.
+# no case can touch the host's crontab or the network. The one crontab a
+# case can get (crontab_lists) only answers -l, from a file.
 STUBBED="lspci ss netstat nproc getent docker timedatectl uname id tailscale df crontab curl git"
 REAL_ID="$(type -P id)"; RUN_UID="$("$REAL_ID" -u)"; RUN_GID="$("$REAL_ID" -g)"
 BASE="$WORK/base-bin"; mkdir -p "$BASE"
@@ -125,6 +128,14 @@ installed()    { # [UPDATE_MODE]: doctor and update.sh run from an install in th
   tar -C "$REPO" --exclude=./.git --exclude=./.env -cf - . | tar -C "$FX/install" -xf - \
     || _fail "installed: copy failed"
   printf 'UPDATE_MODE=%s\n' "${1:-notify}" > "$FX/install/.env"
+}
+crontab_lists(){ # stdin: what 'crontab -l' prints; empty = cron installed, no crontab yet
+  _frozen crontab_lists; cat > "$T/crontab"
+  _stub crontab <<'EOF'
+[ "$*" = -l ] || odd "$@"   # never writes: -l only
+[ -s "$T/crontab" ] || { echo "no crontab for you" >&2; exit 1; }
+cat "$T/crontab"
+EOF
 }
 shell_env()    { _frozen shell_env; echo "$1" >> "$T/shell.env"; }   # KEY=value exported to doctor.sh
 install_env()  { # stdin: more .env lines for the install (after 'installed')
@@ -366,7 +377,7 @@ printf "DET_TZ_FROM=%s\nfamily=%s\nhint=%s\ncron_hint=%s\n" "$DET_TZ_FROM" "$(pk
 printf "fs_of=%s\nfstype_of=%s\nfree_gb=%s\n" "$(fs_of .)" "$(fstype_of .)" "$(free_gb .)"
 detect_image_store; printf "image_store=%s\nimage_store_why=%s\n" "$DET_IMAGE_STORE" "$DET_IMAGE_STORE_WHY"'
 
-_run() { # probe | doctor | setup | update_check | update | update_schedule: once per case, on first use
+_run() { # probe | doctor | setup | setup_real | update_check | update | update_schedule: once per case, on first use
   case " $RAN " in *" $1 "*) return 0 ;; esac
   local rc OVR="" ENVF="" DIR="$REPO" SHENV=()
   [ -f "$T/override" ] && OVR="$(cat "$T/override")"
@@ -380,6 +391,24 @@ _run() { # probe | doctor | setup | update_check | update | update_schedule: onc
                APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos \
                ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
                bash setup.sh --dry-run --yes ${ENVF:+"$ENVF"}) < /dev/null > "$FX/setup" 2>&1; rc=$? ;;
+    # A real --yes run in its own copy: .env, ports.md and the data folders
+    # land there, mktemp under the case's tmp/. prev_env is that copy's
+    # .env, as a user re-runs. The checkout must not change.
+    setup_real)
+      mkdir -p "$FX/real" "$FX/tmp"
+      tar -C "$REPO" --exclude=./.git --exclude=./.env -cf - . | tar -C "$FX/real" -xf - \
+        || _fail "setup_real: copy failed"
+      [ -f "$FX/prev.env" ] && cp "$FX/prev.env" "$FX/real/.env"
+      local before; before="$(ls -A "$REPO")"
+      (cd "$FX/real" && _env TMPDIR="$FX/tmp" STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
+         APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos \
+         ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
+         bash setup.sh --yes) < /dev/null > "$FX/setup_real" 2>&1; rc=$?
+      _check "setup_real leaves the checkout alone" "$before" "$(ls -A "$REPO")"
+      _check "setup_real leaves nothing in tmp/" "" "$(ls -A "$FX/tmp")"
+      awk '/^-- / {f = /^-- Next /} f' "$FX/setup_real" > "$FX/next"   # that section only
+      [ -s "$FX/next" ] || [ -f "$T/setup.refuses" ] || _fail "setup_real never reached its Next steps" ;;
+    next) _run setup_real; RAN="$RAN next"; return 0 ;;   # setup_real's "Next" section
     update_check|update|update_schedule)
       [ -d "$FX/install" ] || { _fail "$1: needs the 'installed' fixture"; RAN="$RAN $1"; return 0; }
       local arg; case "$1" in update_check) arg=--check ;; update) arg="" ;; update_schedule) arg=--schedule ;; esac
@@ -389,8 +418,8 @@ _run() { # probe | doctor | setup | update_check | update | update_schedule: onc
   RAN="$RAN $1"
   local cur="$CUR" want=0; CUR=""
   # Both scripts must finish on any machine: doctor always exits 0, and
-  # a dry run stops early only on its own refusals ('refuses': exit 1).
-  [ "$1" = setup ] && [ -f "$T/setup.refuses" ] && want=1
+  # setup.sh (dry or real) stops early only on its own refusals ('refuses': exit 1).
+  case "$1" in setup|setup_real) [ -f "$T/setup.refuses" ] && want=1 ;; esac
   _check "$1 exits $want" "$want" "$rc"
   [ "$rc" -eq "$want" ] || tail -n 8 "$FX/$1" | sed 's/^/        | /' >> "$FX/report"
   CUR="$cur"
@@ -417,7 +446,8 @@ env_absent() { _run setup; _check ".env $1" "(absent)" "$(sed -n '/Configuration
 # Lines as lib/detect.sh prints them (LC_ALL=C: ASCII symbols, no colour).
 _line() { case "$1" in
   ok) printf '  +  %s' "$2" ;; warn) printf '  !  %s' "$2" ;; err) printf '  x  %s' "$2" ;; info) printf '  i  %s' "$2" ;;
-  note) printf '     %s' "$2" ;; kv) printf '  %-20s %s' "$2" "$3" ;; esac; }
+  note) printf '     %s' "$2" ;; kv) printf '  %-20s %s' "$2" "$3" ;;
+  step) printf '  %s  %-20s %s%s' "$2" "$3" "$4" "${5:+  $5}" ;; esac; }   # step N label command [hint]
 _has() { # subject line
   _run "$1"; N_CHK=$((N_CHK+1))
   if grep -qxF -- "$2" "$FX/$1"; then
@@ -429,6 +459,9 @@ doctor()      { _has doctor "$(_line "$@")"; }    # doctor ok|warn|err|note "tex
 doctor_lacks(){ _lacks doctor "$1"; }
 setup()       { _has setup "$(_line "$@")"; }
 setup_lacks() { _lacks setup "$1"; }
+# setup.sh --yes for real (setup_real), its "Next" section only: next ok|warn|note|step …
+next()        { _has next "$(_line "$@")"; }
+next_lacks()  { _lacks next "$1"; }
 # update.sh in the install: update_check (--check), update, update_schedule (--schedule)
 upd()         { local s="$1"; shift; _has "$s" "$(_line "$@")"; }   # upd update_check err "..."
 upd_lacks()   { _lacks "$1" "$2"; }

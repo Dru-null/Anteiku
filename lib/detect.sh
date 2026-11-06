@@ -490,6 +490,8 @@ install_hint() {
 
 # cron_hint -> how to get a crontab that also runs: Fedora and Arch
 # install cronie without starting it (Arch doesn't even enable it).
+# MSG_CRONTAB_MISSING: doctor's warning and setup's "Next" note (T-060).
+MSG_CRONTAB_MISSING="crontab not found: update.sh --schedule can't add the weekly check."
 cron_hint() {
   case "$(pkg_family)" in
     debian) echo "Install: sudo apt install cron" ;;

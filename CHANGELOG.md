@@ -27,6 +27,9 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   writes nothing: its own ports would have moved.
 - `doctor.sh` and `setup.sh` call it "the Compose plugin", not "Compose
   v2": the plugin's own versions are 5.x now.
+- Without cron, `setup.sh`'s last step says to install it before
+  `./update.sh --schedule`, with the command for your distro. It used to
+  offer the command, which then failed with "crontab not found".
 
 ---
 
