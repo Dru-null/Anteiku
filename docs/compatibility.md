@@ -114,9 +114,7 @@ notifications.
 | Script says | This page |
 |---|---|
 | `doctor.sh`, ARM64: "a few are x86-only" | All pinned images publish `linux/arm64` |
-| `doctor.sh`, AMD: "Works, but it is the fiddliest" | AMD is Mocked |
-| `doctor.sh`, rootless: "Everything else works" | Rootless is Mocked |
 | `setup.sh`, NVIDIA: "Falls back to CPU transcoding if either is missing" | Not run. Docker normally refuses to start a container whose GPU request it can't meet, so expect no Jellyfin rather than CPU transcoding |
 
-`setup.sh` labels the NVIDIA and AMD paths "NOT maintainer-tested".
-`doctor.sh` labels none of the paths above.
+Both scripts label the NVIDIA and AMD paths "NOT maintainer-tested";
+`doctor.sh` labels rootless Docker too. Neither labels ARM64.

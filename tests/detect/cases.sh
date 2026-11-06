@@ -80,7 +80,9 @@ case_gpu_intel_xe() {   # Lunar Lake and newer bind to xe, not i915
 case_gpu_amd() {
   gpu "$L_AMD_6700XT"; render renderD128 amdgpu "$P_AMD"
   is DET_GPU_VENDORS amd; is DET_AMD_RENDER "$BP/pci-$P_AMD-render"; is DET_INTEL_RENDER ""; is pick amd
-  doctor note "AMD VAAPI. Works, but it is the fiddliest of the three and"
+  doctor warn "AMD VAAPI — this path is NOT maintainer-tested."
+  doctor note "From the docs: VAAPI through amdgpu, the same interface as Intel."
+  doctor_lacks "Works, but"
   env_is COMPOSE_FILE compose.yaml:hw/gpu-amd.yaml
   env_is AMD_RENDER_PATH "$BP/pci-$P_AMD-render"; env_absent INTEL_RENDER_PATH; env_is RENDER_GID 992
   setup warn "AMD VAAPI — this path is NOT maintainer-tested."
@@ -90,6 +92,7 @@ case_gpu_amd() {
 case_gpu_nvidia_driver() {   # proprietary driver; the container toolkit is not read at all
   gpu "$L_NV_3060"; render renderD128 nvidia "$P_NV"
   is DET_GPU_VENDORS nvidia; is pick nvidia
+  doctor warn "NVIDIA NVENC — this path is NOT maintainer-tested."
   doctor note "NVIDIA only. Good encoder (NVENC), but it needs the"
   env_is COMPOSE_FILE compose.yaml:hw/gpu-nvidia.yaml
   env_absent INTEL_RENDER_PATH; env_absent AMD_RENDER_PATH
@@ -410,7 +413,9 @@ case_docker_no_compose() {   # distro docker.io without the compose plugin
 case_docker_rootless() {
   docker_is rootless
   is DET_DOCKER_ROOTLESS 1
-  doctor warn "Rootless Docker detected."
+  doctor warn "Rootless Docker detected — this path is NOT maintainer-tested."
+  doctor note "From Docker's docs: ports below 1024 will not bind, and device"
+  doctor_lacks "Everything else works"
   doctor kv Engine "29.0.1"; doctor kv Compose "2.40.3 (v2 plugin)"
 }
 
