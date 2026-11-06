@@ -33,6 +33,7 @@ Linux reports a little less than is installed (about 3.7 GiB on a 4 GiB machine)
 Disk: 10 GB free for the starter set, 25 GB for every service, plus room for your media.
 The images go where Docker keeps them, usually the system disk, not the folder you clone into; `doctor.sh` checks both.
 If it already runs Linux with Docker, skip to [Running it yourself](#running-it-yourself).
+Debian 12 or 13 without Docker: steps 5 to 7 below work there as written, with Docker's Debian page in step 6.
 
 <details>
 <summary>Installing Ubuntu Server, step by step</summary>
@@ -51,7 +52,7 @@ If it already runs Linux with Docker, skip to [Running it yourself](#running-it-
    ```bash
    sudo apt update && sudo apt full-upgrade
    ```
-6. Install Docker Engine and the Compose plugin from [Docker's apt repository](https://docs.docker.com/engine/install/ubuntu/). Not the `docker` snap, which only sees your home folder, and not Ubuntu's `docker.io`.
+6. Install Docker Engine and the Compose plugin from Docker's apt repository, following the page for your distro: [Ubuntu](https://docs.docker.com/engine/install/ubuntu/) or [Debian](https://docs.docker.com/engine/install/debian/). Not the `docker` snap, which only sees your home folder, and not Ubuntu's `docker.io`.
 7. Let your user run Docker, then log out and back in:
    ```bash
    sudo usermod -aG docker $USER
@@ -63,7 +64,7 @@ If it already runs Linux with Docker, skip to [Running it yourself](#running-it-
 
 ## Running it yourself
 
-1. Clone it:
+1. Clone it. Minimal installs may have no `git` (Debian's cloud images have none); `sudo apt install git` first if `git --version` fails:
    ```bash
    git clone https://github.com/dru-null/Anteiku.git anteiku && cd anteiku
    ```
