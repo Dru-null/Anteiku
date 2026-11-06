@@ -242,6 +242,29 @@ fi
 h1 "Storage"
 HERE_FS="$(fs_of .)"; HERE_FREE="$(free_gb .)"; HERE_TYPE="$(fstype_of .)"
 kv "This directory" "$HERE_FS  ($HERE_TYPE, ${HERE_FREE} GB free)"
+# The library: MEDIA_ROOT as compose reads it (the shell, then .env).
+# Unset, setup.sh puts media and config in this folder (T-045).
+MEDIA_AT="${MEDIA_ROOT:-}"
+[ -z "$MEDIA_AT" ] && [ -r .env ] && MEDIA_AT="$(sed -n 's/^MEDIA_ROOT=//p' .env | tail -n 1)"
+if [ -z "$MEDIA_AT" ]; then
+  fs_warn "This directory" "$HERE_TYPE" media
+else
+  MEDIA_DIR="$(existing_dir "$MEDIA_AT")"; MEDIA_TYPE="$(fstype_of "$MEDIA_DIR")"
+  kv "Media (MEDIA_ROOT)" "$MEDIA_AT  ($(fs_of "$MEDIA_DIR"), $MEDIA_TYPE, $(free_gb "$MEDIA_DIR") GB free)"
+  if [ ! -d "$MEDIA_AT" ]; then
+    if [ -w "$MEDIA_DIR" ]; then
+      info "$MEDIA_AT isn't there yet; setup.sh creates it on $(fs_of "$MEDIA_DIR")."
+      note "If it belongs on another disk, mount that disk first."
+    else
+      warn "$MEDIA_AT isn't there, and you can't create it: you can't write to $MEDIA_DIR."
+      note "Mount the disk it belongs on, or make the folder with sudo and chown it to you."
+    fi
+  elif [ ! -w "$MEDIA_AT" ]; then
+    warn "you can't write to $MEDIA_AT (a read-only mount, or another owner)."
+  fi
+  fs_warn "$MEDIA_AT" "$MEDIA_TYPE" media
+  [ "$(fs_of "$MEDIA_DIR")" != "$HERE_FS" ] && fs_warn "This directory" "$HERE_TYPE" config
+fi
 # Images don't go where Anteiku was cloned: Docker keeps them in its own
 # folder (detect_image_store, T-069). The sizes are judged there.
 IMG_FS=""

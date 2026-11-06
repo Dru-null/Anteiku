@@ -138,6 +138,14 @@ cat "$T/crontab"
 EOF
 }
 shell_env()    { _frozen shell_env; echo "$1" >> "$T/shell.env"; }   # KEY=value exported to doctor.sh
+setup_env()    { _frozen setup_env; echo "$1" >> "$T/setup.env"; }   # KEY=value for setup.sh and setup_real, after their defaults
+# locked_dir <path>: an empty folder nobody may write to (mode 555). The
+# case's paths are real folders: -w, mkdir and stat see the real thing.
+locked_dir()   {
+  _frozen locked_dir
+  if ! { mkdir -p "$1" && chmod 555 "$1"; }; then _fail "locked_dir: could not make $1"; return 0; fi
+  [ -w "$1" ] && _fail "locked_dir: $1 is still writable (running as root?)"; return 0
+}
 install_env()  { # stdin: more .env lines for the install (after 'installed')
   _frozen install_env; [ -d "$FX/install" ] || { _fail "install_env: needs the 'installed' fixture"; return 0; }
   cat >> "$FX/install/.env"
@@ -379,16 +387,17 @@ detect_image_store; printf "image_store=%s\nimage_store_why=%s\n" "$DET_IMAGE_ST
 
 _run() { # probe | doctor | setup | setup_real | update_check | update | update_schedule: once per case, on first use
   case " $RAN " in *" $1 "*) return 0 ;; esac
-  local rc OVR="" ENVF="" DIR="$REPO" SHENV=()
+  local rc OVR="" ENVF="" DIR="$REPO" SHENV=() SUENV=()
   [ -f "$T/override" ] && OVR="$(cat "$T/override")"
   [ -f "$T/shell.env" ] && mapfile -t SHENV < "$T/shell.env"
+  [ -f "$T/setup.env" ] && mapfile -t SUENV < "$T/setup.env"
   [ -f "$FX/prev.env" ] && ENVF="--env-file=$FX/prev.env"
   [ -d "$FX/install" ] && DIR="$FX/install"   # doctor and update.sh only
   case "$1" in
     probe)  (cd "$REPO" && _env bash -c "$PROBE") > "$FX/probe" 2>&1; rc=$? ;;
     doctor) (cd "$DIR" && _env "${SHENV[@]}" bash doctor.sh) < /dev/null > "$FX/doctor" 2>&1; rc=$? ;;
     setup)  (cd "$REPO" && _env STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
-               APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos \
+               APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos "${SUENV[@]}" \
                ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
                bash setup.sh --dry-run --yes ${ENVF:+"$ENVF"}) < /dev/null > "$FX/setup" 2>&1; rc=$? ;;
     # A real --yes run in its own copy: .env, ports.md and the data folders
@@ -401,7 +410,7 @@ _run() { # probe | doctor | setup | setup_real | update_check | update | update_
       [ -f "$FX/prev.env" ] && cp "$FX/prev.env" "$FX/real/.env"
       local before; before="$(ls -A "$REPO")"
       (cd "$FX/real" && _env TMPDIR="$FX/tmp" STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
-         APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos \
+         APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos "${SUENV[@]}" \
          ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
          bash setup.sh --yes) < /dev/null > "$FX/setup_real" 2>&1; rc=$?
       _check "setup_real leaves the checkout alone" "$before" "$(ls -A "$REPO")"
@@ -460,6 +469,8 @@ doctor_lacks(){ _lacks doctor "$1"; }
 setup()       { _has setup "$(_line "$@")"; }
 setup_lacks() { _lacks setup "$1"; }
 # setup.sh --yes for real (setup_real), its "Next" section only: next ok|warn|note|step …
+real()        { _has setup_real "$(_line "$@")"; }   # setup_real's whole output: real warn "…"
+real_lacks()  { _lacks setup_real "$1"; }
 next()        { _has next "$(_line "$@")"; }
 next_lacks()  { _lacks next "$1"; }
 # update.sh in the install: update_check (--check), update, update_schedule (--schedule)

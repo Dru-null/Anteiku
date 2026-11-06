@@ -509,6 +509,44 @@ fs_of()    { df -P "$1" 2>/dev/null | awk 'NR==2{print $6}'; }
 fstype_of(){ df -PT "$1" 2>/dev/null | awk 'NR==2{print $2}'; }
 free_gb()  { df -P "$1" 2>/dev/null | awk 'NR==2{printf "%d\n", $4 * 1024 / 1000000000}'; }
 
+# fs_limits <type> -> what that filesystem can't do for the services:
+# "hardlinks" and/or "owners", empty when it does both. Each was tried
+# with ln and chown on a fresh filesystem (T-045):
+#   exfat, vfat: ln fails; every file belongs to whoever mounted it, and
+#     chown to anyone else fails, even as root
+#   fuseblk (FUSE): ntfs-3g's chown succeeds and changes nothing, but it
+#     hardlinks; exFAT through FUSE (exfat-fuse) does neither
+#   ntfs3 (the kernel's NTFS): hardlinks, and owners kept across a remount
+fs_limits() {
+  case "$1" in
+    exfat|vfat) echo "hardlinks owners" ;;
+    fuseblk)    echo "owners" ;;
+  esac
+}
+
+# fs_lacks <type> hardlinks|owners: true when that filesystem lacks it.
+fs_lacks() { case " $(fs_limits "$1") " in *" $2 "*) return 0 ;; esac; return 1; }
+
+# fs_warn <dir> <type> media|config: say what fs_limits means for that dir.
+# The fix for owners is a mount option: chown can't do it there.
+fs_warn() {
+  local d="$1" ty="$2" role="$3" name
+  name="$ty"; [ "$ty" = fuseblk ] && name="fuseblk (FUSE, e.g. NTFS through ntfs-3g)"
+  if [ "$role" = media ] && fs_lacks "$ty" hardlinks; then
+    warn "$d is on $name: no hardlinks, so every import is a full copy."
+    note "Twice the space and slow imports. For a library use a Linux"
+    note "filesystem (ext4, xfs or btrfs); formatting a disk erases it."
+  fi
+  if fs_lacks "$ty" owners; then
+    warn "$d is on $name, which keeps no Linux owners: chown can't fix it."
+    note "Every file belongs to whoever mounted the disk. Mount it with"
+    note "uid=${DET_UID},gid=${DET_GID} (your PUID/PGID) so the containers can write."
+  fi
+  # FUSE hides which filesystem it is: both kinds were tried.
+  [ "$role" = media ] && [ "$ty" = fuseblk ] && note "Hardlinks: NTFS through ntfs-3g has them, exFAT through FUSE doesn't."
+  return 0
+}
+
 # detect_image_store (after detect_docker) -> DET_IMAGE_STORE, the folder
 # Docker keeps images in, or empty with DET_IMAGE_STORE_WHY saying why.
 # Docker 29's default store keeps them in containerd's root: the "root"
