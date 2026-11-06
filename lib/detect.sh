@@ -140,12 +140,19 @@ detect_cpu() {
   esac
 }
 
+# MemTotal is a little under the RAM installed (the kernel and firmware keep
+# some): a 4 GB machine reads about 3.7 GiB. Keep MiB for comparisons and
+# show GiB with one decimal; flooring to whole GiB made it "3" (T-042).
+# Sets DET_MEM_MIB, DET_MEM_GIB ("3.7"), DET_SWAP_MIB, DET_SWAP_GIB.
+_kb_gib() { local t=$(( ($1 * 10 + 524288) / 1048576 )); echo "$(( t / 10 )).$(( t % 10 ))"; }
 detect_mem() {
   local kb R="${ANTEIKU_DETECT_ROOT:-}"
-  kb="$(awk '/^MemTotal:/{print $2}' "$R/proc/meminfo" 2>/dev/null || echo 0)"
-  DET_MEM_GB=$(( kb / 1024 / 1024 ))
-  kb="$(awk '/^SwapTotal:/{print $2}' "$R/proc/meminfo" 2>/dev/null || echo 0)"
-  DET_SWAP_GB=$(( kb / 1024 / 1024 ))
+  kb="$(awk '/^MemTotal:/{print $2; exit}' "$R/proc/meminfo" 2>/dev/null)"
+  [[ "$kb" =~ ^[0-9]+$ ]] || kb=0
+  DET_MEM_MIB=$(( kb / 1024 )); DET_MEM_GIB="$(_kb_gib "$kb")"
+  kb="$(awk '/^SwapTotal:/{print $2; exit}' "$R/proc/meminfo" 2>/dev/null)"
+  [[ "$kb" =~ ^[0-9]+$ ]] || kb=0
+  DET_SWAP_MIB=$(( kb / 1024 )); DET_SWAP_GIB="$(_kb_gib "$kb")"
 }
 
 # --- GPU --------------------------------------------------------------

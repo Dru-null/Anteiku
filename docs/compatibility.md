@@ -108,7 +108,8 @@ web UI answered on its host port, qBittorrent's login included.
 
 | Item | Level | Run / case | Notes |
 |---|---|---|---|
-| Memory | Mocked, **known problem** | `mem_2gb`, `mem_4gb`, `mem_8gb`, `mem_16gb`, `mem_unreadable`, `capture_maintainer_laptop` | Memory and swap are rounded down to whole GiB: a 4 GB machine reads 3 and gets the "under 4 GiB" error, 8 GB reads 7 |
+| Memory | Virtualized (2 and 3 GiB); Mocked | 2026-11-06, after `2026.10.1`; `vm_ubuntu_2gib`, `vm_ubuntu_3gib`, `mem_2gb`, `mem_4gb`, `mem_8gb`, `mem_16gb`, `mem_edge_4`, `mem_below_edge_4`, `mem_edge_8`, `mem_below_edge_8`, `mem_unreadable`, `capture_maintainer_laptop` | Shown to one decimal as the kernel reports it, a little under what is installed. "Under 4 GiB" below 3.5 GiB, "tight" below 7.0 GiB, so 4 and 8 GiB machines get what the README says. VMs given 2 and 3 GiB read 1.9 and 2.8 GiB; the 4 and 8 GiB values are typical ones, not run |
+| CPU count | Virtualized (1 and 2 vCPUs); Mocked | 2026-11-06, after `2026.10.1`; `vm_ubuntu_2gib`, `vm_ubuntu_3gib`, `cpu_amd` | Logical CPUs (`nproc`): threads on real hardware, vCPUs in a VM, fewer when a cpuset limits the process. Display only |
 | Ports, with `ss` or `netstat` | Mocked | `ports_container`, `ports_ours`, `ports_dns`, `ports_netstat_only` | A taken port moves to the next free one |
 | Ports, with neither tool | Mocked | `ports_no_tools`, `ports_no_tools_rerun`, `ports_no_tools_fedora` | Not checked, and both scripts say so. `setup.sh` keeps the last run's port, or the default; a taken one makes `docker compose up` fail with "port is already allocated" or "address already in use" |
 | Timezone without `timedatectl` | Mocked | `tz_file`, `tz_ctl_fails`, `tz_localtime`, `tz_localtime_relative`, `tz_localtime_file`, `tz_none` | Falls back to `/etc/timezone`, then the `/etc/localtime` link, then UTC |
