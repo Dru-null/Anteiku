@@ -585,6 +585,38 @@ EOF2
   doctor_lacks "apt install"; setup_lacks "apt install"
 }
 
+# qBittorrent listens on its host port inside Docker too (T-062): a move
+# changes qbittorrent:<port> for Sonarr and Radarr, so setup.sh says so.
+case_ports_qbit_moved() {   # 8181 taken since the last run: moves, and the arrs must follow
+  listen 8181
+  prev_env <<'ENV'
+COMPOSE_PROFILES=qbittorrent,sonarr,radarr
+PORT_QBITTORRENT=8181
+ENV
+  env_is PORT_QBITTORRENT 8182
+  setup warn "qbittorrent: other containers now reach it at qbittorrent:8182, not qbittorrent:8181."
+  setup note "client in Sonarr and Radarr (Settings > Download Clients)."
+}
+
+case_ports_qbit_back() {   # moved last time, default free again: back to 8181, and said
+  prev_env <<'ENV'
+COMPOSE_PROFILES=qbittorrent,sonarr,radarr
+PORT_QBITTORRENT=8182
+ENV
+  env_is PORT_QBITTORRENT 8181
+  setup warn "qbittorrent: other containers now reach it at qbittorrent:8181, not qbittorrent:8182."
+}
+
+case_ports_qbit_kept() {   # same port as last time: nothing to say
+  listen 8181
+  prev_env <<'ENV'
+COMPOSE_PROFILES=qbittorrent,sonarr,radarr
+PORT_QBITTORRENT=8182
+ENV
+  env_is PORT_QBITTORRENT 8182
+  setup_lacks "other containers now reach it"
+}
+
 # ------------------------------------------------------------ disk (df helpers)
 case_disk_ok() {
   disk 512 ext4 /srv

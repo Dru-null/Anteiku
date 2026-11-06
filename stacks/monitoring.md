@@ -41,7 +41,7 @@ Example output for an eight-service install:
   Media
       jellyfin               http://jellyfin:8096/health
   Acquisition
-      qbittorrent            http://qbittorrent:8080/
+      qbittorrent            http://qbittorrent:8181/
       radarr                 http://radarr:7878/
       sonarr                 http://sonarr:8989/
   Infra
@@ -98,7 +98,9 @@ That is more accurate — you are testing the service, not your port
 mapping — and it keeps working if a published port moves.
 
 Note the internal port is often not the one you browse to:
-qBittorrent is `qbittorrent:8080` even though you open it on 8181.
+Vaultwarden is `vaultwarden:80` even though you open it on 8222.
+qBittorrent's monitor follows `PORT_QBITTORRENT` from `.env`: it listens
+on that port inside Docker too (see `stacks/arr.md`).
 
 ### Real health endpoints where they exist
 

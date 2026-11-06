@@ -11,6 +11,8 @@ socket.io API are both things Python does without fighting quoting rules.
 import json, os, sys
 
 # service | group | type | target(container:port) | health path | extra accepted code
+# Port "=": the service listens on its host port inside Docker too, so
+# the port is PORT_<SERVICE> from .env (qBittorrent, stacks/arr.yaml).
 CATALOGUE = """
 pihole|Critical|http|pihole:80|/admin/login|
 nginx-proxy-manager|Critical|http|nginx-proxy-manager:81|/|
@@ -28,7 +30,7 @@ radarr|Acquisition|http|radarr:7878|/|
 lidarr|Acquisition|http|lidarr:8686|/|
 lazylibrarian|Acquisition|http|lazylibrarian:5299|/|
 bazarr|Acquisition|http|bazarr:6767|/|
-qbittorrent|Acquisition|http|qbittorrent:8080|/|401
+qbittorrent|Acquisition|http|qbittorrent:=|/|401
 dozzle|Infra|http|dozzle:8080|/|
 ntfy|Infra|http|ntfy:80|/v1/health|
 """
@@ -36,7 +38,8 @@ ntfy|Infra|http|ntfy:80|/v1/health|
 GROUP_ORDER = ["Critical", "Media", "Acquisition", "Infra", "Containers", "External"]
 
 
-def build_plan(profiles, prefix):
+def build_plan(profiles, prefix, env=None):
+    env = os.environ if env is None else env
     chosen = {p.strip() for p in profiles.split(",") if p.strip()}
     rows = []
     for line in CATALOGUE.strip().splitlines():
@@ -49,6 +52,12 @@ def build_plan(profiles, prefix):
         # page means "up and asking who you are", not "down" - so accept
         # redirects, and auth codes where that service returns one.
         codes = ["200-299", "300-399"] + ([extra] if extra else [])
+        if tgt.endswith(":="):
+            port = env.get("PORT_" + svc.upper().replace("-", "_"), "")
+            if not port.isdigit():
+                sys.exit("kuma-monitors.py: %s needs PORT_%s from .env"
+                         % (svc, svc.upper().replace("-", "_")))
+            tgt = tgt[:-1] + port
         rows.append({"service": svc, "group": grp, "type": typ, "target": tgt,
                      "path": path, "codes": codes, "container": prefix + svc})
     # Always included: tells you whether it is your stack or your line.

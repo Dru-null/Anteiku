@@ -128,8 +128,10 @@ For each service: **Hosts → Proxy Hosts → Add Proxy Host**
 > Containers reach each other by name on the shared network, and that
 > keeps working when your IP changes or a host port moves.
 >
-> The two differ more often than you would expect: qBittorrent is
-> `qbittorrent:8080` even though you browse to it on 8181.
+> The two differ more often than you would expect: Vaultwarden is
+> `vaultwarden:80` even though you browse to it on 8222. qBittorrent is
+> the exception that uses its host port inside too (`qbittorrent:8181`
+> by default; see `stacks/arr.md`).
 
 Repeat per service. A typical set:
 
@@ -138,7 +140,7 @@ Repeat per service. A typical set:
 | `jellyfin.home` | `jellyfin:8096` |
 | `sonarr.home` | `sonarr:8989` |
 | `radarr.home` | `radarr:7878` |
-| `qbit.home` | `qbittorrent:8080` |
+| `qbit.home` | `qbittorrent:8181` |
 | `requests.home` | `seerr:5055` |
 | `music.home` | `navidrome:4533` |
 | `pihole.home` | `pihole:80` |

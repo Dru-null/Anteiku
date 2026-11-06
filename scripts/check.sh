@@ -431,6 +431,31 @@ CASES
   if [ "$rc" -ne 0 ] || grep -q 'variable is not set' <<< "$out"; then
     err "compose config on the generated .env"; sort -u <<< "$out" | indent
   else ok "compose config on the generated .env: valid"; fi
+  # Same port inside and out (T-062): qBittorrent refuses (401) a Host
+  # header whose port isn't the one it listens on. Catalogue port "=":
+  # published = target = PORT_<KEY>, WEBUI_PORTS (hotio) the same, and
+  # ports.md's "Inside Docker" names it. Also with the port moved.
+  SAME="$(awk -F'|' '$5 == "=" {print $1}' <<< "$CATALOGUE")"
+  n=0; bad=""
+  for k in $SAME; do
+    var="PORT_$(tr '[:lower:]-' '[:upper:]_' <<< "$k")"
+    for moved in "" 8190; do
+      want="${moved:-$(sed -n "s/^$var=//p" "$S/.env")}"
+      got="$(cd "$S" && env -i "PATH=$PATH" "HOME=$HOME" ${DOCKER_HOST:+"DOCKER_HOST=$DOCKER_HOST"} \
+        ${moved:+"$var=$moved"} docker compose config --format json 2>/dev/null | py -c '
+import json, sys
+svc = json.load(sys.stdin)["services"][sys.argv[1]]
+ports = ["%s:%s" % (p.get("published"), p.get("target")) for p in svc.get("ports", [])]
+print(" ".join(ports), svc.get("environment", {}).get("WEBUI_PORTS", "-"))
+' "$k" 2>&1)"
+      n=$((n+1))
+      [ "$got" = "$want:$want $want/tcp" ] || bad="$bad $k${moved:+ (moved)}: [$got], want [$want:$want $want/tcp];"
+    done
+    grep -qF "| \`$k:$(sed -n "s/^$var=//p" "$S/.env")\` |" "$S/ports.md" || bad="$bad ports.md has no \`$k:<host port>\` row;"
+  done
+  if [ -z "$SAME" ]; then err "same-port services: none in the catalogue (expected qbittorrent)"
+  elif [ -n "$bad" ]; then err "same port inside and out:$bad"
+  else ok "same port inside and out: $SAME ($n configs, ports.md)"; fi
 else
   err "--yes wrote no .env"
 fi
@@ -481,7 +506,8 @@ else
       && has_line kuma-dry "^  $n_mon monitors across" "kuma-bootstrap.sh --dry-run: did not render $n_mon monitors" \
       && ok "kuma-bootstrap.sh --dry-run: rendered $n_mon monitors"
     # The plan as kuma-apply.py receives it: JSON, one row per service.
-    run_helper kuma-plan COMPOSE_PROFILES="$PROF" STACK_PREFIX=chk- python3 -I scripts/kuma-monitors.py plan; rc=$?
+    run_helper kuma-plan COMPOSE_PROFILES="$PROF" STACK_PREFIX=chk- \
+      PORT_QBITTORRENT="$(sed -n 's/^PORT_QBITTORRENT=//p' "$S/.env")" python3 -I scripts/kuma-monitors.py plan; rc=$?
     got="$(python3 -I -c '
 import json, sys
 want = set(sys.argv[2].split()) | {"__internet__"}
@@ -496,8 +522,10 @@ if len(names) != len(set(names)): sys.exit("a service twice: %s" % sorted({n for
 if set(names) != want: sys.exit("missing %s, extra %s" % (sorted(want - set(names)), sorted(set(names) - want)))
 bad = [r["service"] for r in rows if r["service"] != "__internet__" and r.get("container") != "chk-" + r["service"]]
 if bad: sys.exit("wrong container name: %s" % bad)
+qb = [r.get("target") for r in rows if r["service"] == "qbittorrent"]
+if qb != ["qbittorrent:" + sys.argv[3]]: sys.exit("qbittorrent target %s, want qbittorrent:%s (its host port, T-062)" % (qb, sys.argv[3]))
 print(len(rows))
-' "$WORK/kuma-plan.log" "$WANT_MON" 2>&1)"
+' "$WORK/kuma-plan.log" "$WANT_MON" "$(sed -n 's/^PORT_QBITTORRENT=//p' "$S/.env")" 2>&1)"
     if [ "$rc" -ne 0 ]; then err "kuma-monitors.py plan: exit $rc"; tail -n 5 "$WORK/kuma-plan.log" | indent
     elif [ "$got" != "$n_mon" ]; then err "kuma-monitors.py plan: $got"
     else ok "kuma-monitors.py plan: JSON, $got monitors (every installed service but Kuma, + internet)"; fi
