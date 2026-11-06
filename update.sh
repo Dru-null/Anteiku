@@ -63,6 +63,7 @@ check_run() {
   local old changes action
   old="$(release_current)"
   kv "This install" "${old:-unknown}"
+  have curl || { err "curl is not installed: it asks GitHub for the newest release."; note "$(install_hint curl)"; exit 2; }
   if ! release_latest; then err "Could not ask GitHub for the newest release."; exit 2; fi
   kv "Newest release" "$REL_TAG"
   if [ -n "$old" ] && ! version_gt "$REL_TAG" "$old"; then
@@ -132,6 +133,10 @@ Nothing was changed."
 do_update() {
   local changes action dirty ans
   h1 "Before updating"
+  local t
+  for t in git curl; do
+    have "$t" || { err "$t is not installed: update.sh needs it."; note "$(install_hint "$t")"; RESULT="$t not installed"; return 1; }
+  done
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || { err "This folder is not a git checkout."; note "update.sh moves it to a release with git. Clone the repo with git to use it."; RESULT="not a git checkout"; return 1; }
   [ -r "$ENV_FILE" ] || { err "No $ENV_FILE: run ./setup.sh first."; RESULT="no $ENV_FILE"; return 1; }
@@ -333,7 +338,7 @@ CRONTAB="${ANTEIKU_CRONTAB:-crontab}"   # overridable for testing only
 schedule_run() {
   local tag="# anteiku-update $PWD" line cur rc keep
   case "$PWD" in *%*) err "cron can't run a path with % in it: $PWD"; exit 1 ;; esac
-  have "${CRONTAB%% *}" || { err "crontab not found."; note "Install cron (sudo apt install cron), or run ./update.sh --check now and then."; exit 1; }
+  have "${CRONTAB%% *}" || { err "crontab not found."; note "$(cron_hint)"; note "Or run ./update.sh --check now and then."; exit 1; }
   cur="$($CRONTAB -l 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ] && $CRONTAB -l 2>&1 | grep -qv '^no crontab'; then
     err "Could not read your crontab. Left it alone."; exit 1

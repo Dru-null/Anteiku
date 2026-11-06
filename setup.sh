@@ -602,6 +602,18 @@ ok "Network name is free of conflicts."
 #  Ports — shift any that are taken.
 # ============================================================
 h1 "Ports"
+# Without ss or netstat nothing can tell a taken port from a free one.
+# Then keep what the last run chose (it was checked then), or the
+# default, and say so: compose names the clash if there is one.
+PORTS_CHECKED=1
+if ! ports_checkable; then
+  PORTS_CHECKED=0
+  warn "Can't check which ports are free: neither ss nor netstat is installed."
+  note "Each service keeps its port from the last run, or its default."
+  note "If one is taken, 'docker compose up' stops with \"port is already"
+  note "allocated\" or \"address already in use\"."
+  note "$(install_hint ss), then re-run this script: it moves taken ports."
+fi
 declare -A PORT_FINAL
 declare -A PORT_CLAIMED     # ports handed out in THIS run
 declare -A PORT_MOVED       # key -> original, for the ones we shifted
@@ -624,7 +636,13 @@ held_by_us() {
 }
 usable() {   # port service
   [ -z "${PORT_CLAIMED[$1]:-}" ] || return 1
-  ! port_in_use "$1" || held_by_us "$1" "$2"
+  [ "$PORTS_CHECKED" -eq 1 ] || return 0   # unchecked: decided above
+  port_in_use "$1"
+  case $? in
+    1) return 0 ;;
+    0) held_by_us "$1" "$2" ;;
+    *) return 1 ;;   # can't tell: never call it free
+  esac
 }
 
 # Preference order, so ports stay put across re-runs:
@@ -633,6 +651,8 @@ usable() {   # port service
 #   3. walk upward from the default
 find_free_port() {   # default service [previous]
   local p="$1" svc="$2" prev="${3:-}" tries=0
+  # Unchecked, last run's port goes first: it moved for a reason then.
+  if [ "$PORTS_CHECKED" -eq 0 ] && [ -n "$prev" ] && usable "$prev" "$svc"; then echo "$prev"; return 0; fi
   if usable "$p" "$svc"; then echo "$p"; return 0; fi
   if [ -n "$prev" ] && usable "$prev" "$svc"; then echo "$prev"; return 0; fi
   while [ "$tries" -lt 500 ]; do
@@ -670,8 +690,10 @@ for ((i=0;i<N;i++)); do
     exit 1
   fi
   PORT_FINAL["$k"]="$p"; PORT_CLAIMED["$p"]=1
-  if [ "$p" != "$orig" ]; then
-    PORT_MOVED["$k"]="$orig"; PORT_SHIFTS=$(( PORT_SHIFTS + 1 ))
+  [ "$p" != "$orig" ] && { PORT_MOVED["$k"]="$orig"; PORT_SHIFTS=$(( PORT_SHIFTS + 1 )); }
+  if [ "$PORTS_CHECKED" -eq 0 ]; then
+    info "$k: $p (not checked)"
+  elif [ "$p" != "$orig" ]; then
     warn "$k: $orig taken by $(who_has_port "$orig") — moved to $p"
   else
     ok "$k: $p"
@@ -687,6 +709,10 @@ while IFS='|' read -r owner var dflt what impact; do
     continue
   fi
   EXTRA_FINAL["$var"]="$p"; PORT_CLAIMED["$p"]=1
+  if [ "$PORTS_CHECKED" -eq 0 ]; then
+    info "$var: $p  ($what, not checked)"
+    continue
+  fi
   if [ "$p" = "$dflt" ]; then
     ok "$var: $p  ($what)"
     continue
@@ -719,7 +745,11 @@ fi
 # ============================================================
 if _sel_has pihole; then
   h1 "DNS (port 53)"
-  if [ "${PORT_FINAL[pihole]}" != "53" ]; then
+  if [ "$PORTS_CHECKED" -eq 0 ]; then
+    warn "Port 53 not checked. Pi-hole can only serve your network on 53."
+    note "On most Ubuntu/Debian boxes systemd-resolved holds it: if Pi-hole"
+    note "won't start, see stacks/infra.md."
+  elif [ "${PORT_FINAL[pihole]}" != "53" ]; then
     warn "Port 53 is taken by $(who_has_port 53) — Pi-hole moved to ${PORT_FINAL[pihole]}."
     note ""
     note "Pi-hole on a non-standard port CANNOT serve your network. Clients"

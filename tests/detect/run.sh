@@ -117,6 +117,14 @@ mem_kb()    { # MemTotal [SwapTotal], in kB as the kernel prints them
 tz_ctl()       { _frozen tz_ctl; echo "$1" > "$T/tz"; rm -f "$T/tz.fail"; }
 tz_ctl_fails() { _frozen tz_ctl_fails; rm -f "$T/tz"; : > "$T/tz.fail"; }   # installed, no systemd
 tz_file()      { _frozen tz_file; mkdir -p "$R/etc"; echo "$1" > "$R/etc/timezone"; }
+tz_link()      { _frozen tz_link; mkdir -p "$R/etc"; ln -s "$1" "$R/etc/localtime"; }   # target as the distro writes it
+prev_env()     { _frozen prev_env; cat > "$FX/prev.env"; }   # an earlier run's .env: setup.sh --env-file
+installed()    { # [UPDATE_MODE]: doctor and update.sh run from an install in the case's temp dir
+  _frozen installed; mkdir -p "$FX/install"
+  tar -C "$REPO" --exclude=./.git --exclude=./.env -cf - . | tar -C "$FX/install" -xf - \
+    || _fail "installed: copy failed"
+  printf 'UPDATE_MODE=%s\n' "${1:-notify}" > "$FX/install/.env"
+}
 pci()       { # slot class vendor device [driver]: a PCI device in sysfs
   _frozen pci; local d="$R/sys/bus/pci/devices/0000:$1"
   mkdir -p "$d"; echo "$2" > "$d/class"; echo "0x${3}" > "$d/vendor"; echo "0x${4}" > "$d/device"
@@ -314,21 +322,34 @@ printf "DET_GPUS=%s\n" "$(printf "%s" "$DET_GPUS" | paste -sd ";")"
 printf "DET_RENDER_NODES=%s\n" "$(printf "%s" "$DET_RENDER_NODES" | paste -sd ";")"
 printf "pick=%s\n" "$(pick_gpu_profile)"
 for p in 53 5055 5299 6767 7878 8181 8686 8989 9696; do
-  if port_in_use "$p"; then printf "port.%s=used by %s\n" "$p" "$(who_has_port "$p")"; else printf "port.%s=free\n" "$p"; fi
+  port_in_use "$p"
+  case $? in
+    0) printf "port.%s=used by %s\n" "$p" "$(who_has_port "$p")" ;;
+    1) printf "port.%s=free\n" "$p" ;;
+    *) printf "port.%s=unchecked\n" "$p" ;;
+  esac
 done
+printf "DET_TZ_FROM=%s\nfamily=%s\nhint=%s\ncron_hint=%s\n" "$DET_TZ_FROM" "$(pkg_family)" "$(install_hint ss curl)" "$(cron_hint)"
 printf "fs_of=%s\nfstype_of=%s\nfree_gb=%s\n" "$(fs_of .)" "$(fstype_of .)" "$(free_gb .)"'
 
-_run() { # probe | doctor | setup: once per case, on first use
+_run() { # probe | doctor | setup | update_check | update | update_schedule: once per case, on first use
   case " $RAN " in *" $1 "*) return 0 ;; esac
-  local rc OVR=""
+  local rc OVR="" ENVF="" DIR="$REPO"
   [ -f "$T/override" ] && OVR="$(cat "$T/override")"
+  [ -f "$FX/prev.env" ] && ENVF="--env-file=$FX/prev.env"
+  [ -d "$FX/install" ] && DIR="$FX/install"   # doctor and update.sh only
   case "$1" in
     probe)  (cd "$REPO" && _env bash -c "$PROBE") > "$FX/probe" 2>&1; rc=$? ;;
-    doctor) (cd "$REPO" && _env bash doctor.sh) < /dev/null > "$FX/doctor" 2>&1; rc=$? ;;
+    doctor) (cd "$DIR" && _env bash doctor.sh) < /dev/null > "$FX/doctor" 2>&1; rc=$? ;;
     setup)  (cd "$REPO" && _env STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
                APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos \
                ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
-               bash setup.sh --dry-run --yes) < /dev/null > "$FX/setup" 2>&1; rc=$? ;;
+               bash setup.sh --dry-run --yes ${ENVF:+"$ENVF"}) < /dev/null > "$FX/setup" 2>&1; rc=$? ;;
+    update_check|update|update_schedule)
+      [ -d "$FX/install" ] || { _fail "$1: needs the 'installed' fixture"; RAN="$RAN $1"; return 0; }
+      local arg; case "$1" in update_check) arg=--check ;; update) arg="" ;; update_schedule) arg=--schedule ;; esac
+      (cd "$FX/install" && _env bash update.sh ${arg:+"$arg"}) < /dev/null > "$FX/$1" 2>&1
+      echo "$?" > "$FX/$1.rc"; RAN="$RAN $1"; return 0 ;;
   esac
   RAN="$RAN $1"
   local cur="$CUR"; CUR=""
@@ -359,7 +380,7 @@ env_is()     { _run setup; _check ".env $1" "$2" "$(_envline "$1")"; }
 env_absent() { _run setup; _check ".env $1" "(absent)" "$(sed -n '/Configuration to write/,$p' "$FX/setup" | grep -q "^  $1=" && echo present || echo '(absent)')"; }
 # Lines as lib/detect.sh prints them (LC_ALL=C: ASCII symbols, no colour).
 _line() { case "$1" in
-  ok) printf '  +  %s' "$2" ;; warn) printf '  !  %s' "$2" ;; err) printf '  x  %s' "$2" ;;
+  ok) printf '  +  %s' "$2" ;; warn) printf '  !  %s' "$2" ;; err) printf '  x  %s' "$2" ;; info) printf '  i  %s' "$2" ;;
   note) printf '     %s' "$2" ;; kv) printf '  %-20s %s' "$2" "$3" ;; esac; }
 _has() { # subject line
   _run "$1"; N_CHK=$((N_CHK+1))
@@ -372,6 +393,10 @@ doctor()      { _has doctor "$(_line "$@")"; }    # doctor ok|warn|err|note "tex
 doctor_lacks(){ _lacks doctor "$1"; }
 setup()       { _has setup "$(_line "$@")"; }
 setup_lacks() { _lacks setup "$1"; }
+# update.sh in the install: update_check (--check), update, update_schedule (--schedule)
+upd()         { local s="$1"; shift; _has "$s" "$(_line "$@")"; }   # upd update_check err "..."
+upd_lacks()   { _lacks "$1" "$2"; }
+exits()       { _run "$1"; _check "$1 exit code" "$2" "$(cat "$FX/$1.rc" 2>/dev/null)"; }
 
 # ------------------------------------------------------------ cases
 # Each case runs in its own subshell, a few at a time; results are
