@@ -60,7 +60,7 @@ case_baseline() {   # the default machine, unchanged
   doctor kv Compose "2.40.3 (plugin)"; doctor_lacks "v2"   # plugin versions aren't "v2" (T-077)
   setup ok "No container name collisions."; setup ok "Network name is free of conflicts."
   setup_lacks "Not checked without Docker"
-  next step 1 "Your ports" "cat ports.md" "bookmark this"
+  next step 1 "Your ports" "cat ports.md" "bookmark this"; real ok "wrote ports.md"
   next_lacks "Not checked without Docker"; next_lacks "Compose plugin"
   doctor ok "All default ports for the arr stack are free."
   doctor kv GPU "none detected"
@@ -1048,6 +1048,15 @@ case_storage_media_from_env() {   # an install: doctor reads MEDIA_ROOT from .en
   installed; mkdir -p "$FX/usb/media"; disk_at "$FX/usb" 900 exfat "$FX/usb"
   install_env <<< "MEDIA_ROOT=$FX/usb/media"
   doctor kv "Media (MEDIA_ROOT)" "$FX/usb/media  ($FX/usb, exfat, 900 GB free)"
+}
+
+case_ports_md_unwritable() {   # ports.md can't be written: "Next" must not send you to it (T-080)
+  ports_md_blocked
+  real warn "could not write ports.md (is the disk full?). Run ./setup.sh again once there is room."
+  real_lacks "wrote ports.md"
+  real_lacks "Is a directory"
+  next step 1 "Your ports" "./setup.sh" "run again: ports.md wasn't written (see above)"
+  next_lacks "cat ports.md"
 }
 
 case_disk_edge_25() {
