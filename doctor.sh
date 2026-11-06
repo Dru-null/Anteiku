@@ -79,9 +79,9 @@ else
     fi
   fi
   [ "$DET_DOCKER_ROOTLESS" -eq 1 ] && {
-    warn "Rootless Docker detected."
-    note "Ports below 1024 will not bind, and device passthrough for GPU"
-    note "transcoding needs extra setup. Everything else works."; }
+    warn "Rootless Docker detected — this path is NOT maintainer-tested."
+    note "From Docker's docs: ports below 1024 will not bind, and device"
+    note "passthrough for GPU transcoding needs extra setup."; }
 fi
 
 # ------------------------------------------------------------------- gpu
@@ -120,6 +120,7 @@ case "$DET_GPU_VENDORS" in
     note "is purpose-built for this, costs a few watts, and needs no extra"
     note "driver plumbing. Save the NVIDIA card for games." ;;
   *nvidia*)
+    warn "NVIDIA NVENC — this path is NOT maintainer-tested."
     note "NVIDIA only. Good encoder (NVENC), but it needs the"
     note "nvidia-container-toolkit installed before Docker can see it."
     note "Consumer cards also cap concurrent encode sessions." ;;
@@ -127,8 +128,9 @@ case "$DET_GPU_VENDORS" in
     note "Intel Quick Sync — the sweet spot for this job. Low power, good"
     note "quality, minimal setup. Just pass the render node." ;;
   *amd*)
-    note "AMD VAAPI. Works, but it is the fiddliest of the three and"
-    note "quality at a given bitrate trails Intel and NVIDIA." ;;
+    warn "AMD VAAPI — this path is NOT maintainer-tested."
+    note "From the docs: VAAPI through amdgpu, the same interface as Intel."
+    note "Expect more setup than Intel, and lower quality at a given bitrate." ;;
   *)
     note "No GPU detected — CPU transcoding only." ;;
 esac
