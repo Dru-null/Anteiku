@@ -56,6 +56,8 @@ case_baseline() {   # the default machine, unchanged
   doctor kv User "uid=$RUN_UID gid=$RUN_GID"
   doctor ok "64-bit x86 — every image in this repo has a build for it."
   doctor ok "Docker daemon is reachable."
+  setup ok "No container name collisions."; setup ok "Network name is free of conflicts."
+  setup_lacks "Not checked without Docker"
   doctor ok "All default ports for the arr stack are free."
   doctor kv GPU "none detected"
   doctor note "No GPU detected — CPU transcoding only."
@@ -505,6 +507,14 @@ case_docker_absent() {
   is DET_DOCKER_VER ""; is DET_DOCKER_OK 0
   doctor err "Docker is not installed. Nothing here can run without it."
   setup_lacks "Compose v2 plugin missing"   # no docker at all: not a plugin problem (T-073)
+  # setup.sh writes the config, says so in doctor's words, and doesn't
+  # claim checks it couldn't make (T-078).
+  setup warn "Docker is not installed. Nothing here can run without it."
+  setup note "Install: https://docs.docker.com/engine/install/"
+  setup info "Container names and the network name: not checked, Docker is not installed."
+  setup note "Not checked without Docker: container name collisions, the network name."
+  setup_lacks "No container name collisions."; setup_lacks "Network name is free of conflicts."
+  env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
 }
 
 case_docker_down_not_in_group() {
@@ -512,12 +522,48 @@ case_docker_down_not_in_group() {
   is DET_DOCKER_OK 0; is DET_IN_DOCKER_GROUP 0
   doctor err "Docker is installed but the daemon is not reachable as this user."
   doctor note "You are not in the 'docker' group. Fix, then log out and back in:"
+  setup warn "Docker is installed but the daemon is not reachable as this user."
+  setup note "You are not in the 'docker' group. Fix, then log out and back in:"
+  setup note "  sudo usermod -aG docker \$USER"
+  setup info "Container names and the network name: not checked, Docker is not reachable."
+  setup_lacks "No container name collisions."; setup_lacks "Network name is free of conflicts."
+  setup_lacks "Is it running?"
+  env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
 }
 
 case_docker_down_in_group() {
   docker_is down
   is DET_IN_DOCKER_GROUP 1
   doctor note "Is it running?  sudo systemctl status docker"
+  setup warn "Docker is installed but the daemon is not reachable as this user."
+  setup note "Is it running?  sudo systemctl status docker"
+  setup note "Once ./doctor.sh says the daemon is reachable, re-run this script"
+  setup_lacks "No container name collisions."; setup_lacks "You are not in the 'docker' group"
+}
+
+# A re-run can't be written without Docker: the install's own containers
+# may hold their ports, and only Docker can say they are its own (T-078).
+case_docker_down_rerun() {   # own Sonarr on 8989, daemon unreachable: refused, nothing written
+  docker_is down; refuses; listen 8989
+  prev_env <<'ENV'
+COMPOSE_PROFILES=sonarr
+PORT_SONARR=8989
+ENV
+  setup err "Docker is installed but the daemon is not reachable as this user."
+  setup note "Is it running?  sudo systemctl status docker"
+  setup note "from a clash, so their ports would move. Refusing; nothing was written."
+  setup_lacks "Configuration to write"; setup_lacks "No container name collisions."
+}
+
+case_docker_absent_rerun() {   # no Docker, nothing of the install can be running: written
+  docker_is absent
+  prev_env <<'ENV'
+COMPOSE_PROFILES=sonarr
+PORT_SONARR=8989
+ENV
+  env_is PORT_SONARR 8989
+  setup warn "Docker is not installed. Nothing here can run without it."
+  setup_lacks "Refusing"
 }
 
 case_docker_no_compose() {   # distro docker.io without the compose plugin

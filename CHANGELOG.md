@@ -22,6 +22,9 @@ interest. How to update: [docs/updating.md](docs/updating.md).
 - `doctor.sh` checks free space where Docker keeps images, not in the
   install folder, and says so when it can't tell. Sizes are GB, rounded
   down; they were GiB, rounded up.
+- `setup.sh` says when Docker is missing or not reachable, and what it
+  couldn't check then. A re-run of an install in that state stops and
+  writes nothing: its own ports would have moved.
 
 ---
 

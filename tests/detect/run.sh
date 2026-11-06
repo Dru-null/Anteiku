@@ -119,6 +119,7 @@ tz_ctl_fails() { _frozen tz_ctl_fails; rm -f "$T/tz"; : > "$T/tz.fail"; }   # in
 tz_file()      { _frozen tz_file; mkdir -p "$R/etc"; echo "$1" > "$R/etc/timezone"; }
 tz_link()      { _frozen tz_link; mkdir -p "$R/etc"; ln -s "$1" "$R/etc/localtime"; }   # target as the distro writes it
 prev_env()     { _frozen prev_env; cat > "$FX/prev.env"; }   # an earlier run's .env: setup.sh --env-file
+refuses()      { _frozen refuses; : > "$T/setup.refuses"; }  # setup.sh must stop with exit 1, not 0
 installed()    { # [UPDATE_MODE]: doctor and update.sh run from an install in the case's temp dir
   _frozen installed; mkdir -p "$FX/install"
   tar -C "$REPO" --exclude=./.git --exclude=./.env -cf - . | tar -C "$FX/install" -xf - \
@@ -386,11 +387,12 @@ _run() { # probe | doctor | setup | update_check | update | update_schedule: onc
       echo "$?" > "$FX/$1.rc"; RAN="$RAN $1"; return 0 ;;
   esac
   RAN="$RAN $1"
-  local cur="$CUR"; CUR=""
+  local cur="$CUR" want=0; CUR=""
   # Both scripts must finish on any machine: doctor always exits 0, and
-  # a dry run only stops early on its own refusals (none here).
-  _check "$1 exits 0" "0" "$rc"
-  [ "$rc" -eq 0 ] || tail -n 8 "$FX/$1" | sed 's/^/        | /' >> "$FX/report"
+  # a dry run stops early only on its own refusals ('refuses': exit 1).
+  [ "$1" = setup ] && [ -f "$T/setup.refuses" ] && want=1
+  _check "$1 exits $want" "$want" "$rc"
+  [ "$rc" -eq "$want" ] || tail -n 8 "$FX/$1" | sed 's/^/        | /' >> "$FX/report"
   CUR="$cur"
 }
 

@@ -93,8 +93,8 @@ fi
 # ---------------------------------------------------------------- docker
 h1 "Docker"
 if [ -z "$DET_DOCKER_VER" ]; then
-  err "Docker is not installed. Nothing here can run without it."
-  note "Install: https://docs.docker.com/engine/install/"
+  err "$MSG_DOCKER_ABSENT"
+  note "$MSG_DOCKER_INSTALL"
 else
   kv "Engine" "$DET_DOCKER_VER"
   if [ -n "$DET_COMPOSE_VER" ]; then
@@ -107,13 +107,8 @@ else
   if [ "$DET_DOCKER_OK" -eq 1 ]; then
     ok "Docker daemon is reachable."
   else
-    err "Docker is installed but the daemon is not reachable as this user."
-    if [ "$DET_IN_DOCKER_GROUP" -eq 0 ]; then
-      note "You are not in the 'docker' group. Fix, then log out and back in:"
-      note "  sudo usermod -aG docker \$USER"
-    else
-      note "Is it running?  sudo systemctl status docker"
-    fi
+    err "$MSG_DOCKER_DOWN"
+    docker_fix_notes
   fi
   [ "$DET_DOCKER_ROOTLESS" -eq 1 ] && {
     warn "Rootless Docker detected — this path is NOT maintainer-tested."

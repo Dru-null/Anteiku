@@ -91,6 +91,26 @@ say_compose_missing() {
   echo
 }
 
+# Without Docker (or a daemon this user can't reach) the config is still
+# right, but the safety check couldn't ask about container names or the
+# network. A re-run once Docker answers makes those checks and keeps every
+# setting. A re-run of an install is refused instead ("Existing install
+# found"): its own ports would look taken and move (T-078).
+say_docker_unchecked() {
+  [ "$DET_DOCKER_OK" -eq 1 ] && return 0
+  if [ -z "$DET_DOCKER_VER" ]; then
+    warn "$MSG_DOCKER_ABSENT"
+    note "$MSG_DOCKER_INSTALL"
+  else
+    warn "$MSG_DOCKER_DOWN"
+    docker_fix_notes
+  fi
+  note "Not checked without Docker: container name collisions, the network name."
+  note "Once ./doctor.sh says the daemon is reachable, re-run this script"
+  note "before 'docker compose up': it keeps your settings and checks those."
+  echo
+}
+
 # ============================================================
 #  Service catalogue.  key|stack|default|hostport|internalport|description
 #  hostport is only a PREFERENCE — setup.sh moves it if it is taken.
@@ -171,6 +191,15 @@ LOCKED=0; [ "$RERUN" -eq 1 ] && [ "$RECONFIGURE" -eq 0 ] && LOCKED=1
 
 if [ "$RERUN" -eq 1 ]; then
   h1 "Existing install found"
+  if [ -n "$DET_DOCKER_VER" ] && [ "$DET_DOCKER_OK" -ne 1 ]; then
+    err "$MSG_DOCKER_DOWN"
+    docker_fix_notes
+    note ""
+    note "Without Docker, this install's own containers can't be told apart"
+    note "from a clash, so their ports would move. Refusing; nothing was written."
+    note "Fix that, then re-run this script."
+    exit 1
+  fi
   RUNNING=0
   [ "$DET_DOCKER_OK" -eq 1 ] && RUNNING="$(docker ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME:-anteiku}" 2>/dev/null | wc -l)"
   info "$N_INST service(s) installed by an earlier run ${C_GREY}($ENV_FILE, $RUNNING container(s) running)${C_RST}"
@@ -603,16 +632,18 @@ if [ "${#COLLIDE[@]}" -gt 0 ]; then
   fi
   exit 1
 fi
-ok "No container name collisions."
-[ "$OURS" -gt 0 ] && note "$OURS already running from this project — re-running is fine; compose updates them in place."
-
-if [ "$DET_DOCKER_OK" -eq 1 ] && docker network inspect homelab >/dev/null 2>&1 \
-   && [ "${DOCKER_NETWORK:-anteiku}" = "homelab" ]; then
-  err "A docker network called 'homelab' already exists and you are targeting it."
-  note "Pick a different DOCKER_NETWORK so this project stays separate."
-  exit 1
+if [ "$DET_DOCKER_OK" -eq 1 ]; then
+  ok "No container name collisions."
+  [ "$OURS" -gt 0 ] && note "$OURS already running from this project — re-running is fine; compose updates them in place."
+  if docker network inspect homelab >/dev/null 2>&1 && [ "${DOCKER_NETWORK:-anteiku}" = "homelab" ]; then
+    err "A docker network called 'homelab' already exists and you are targeting it."
+    note "Pick a different DOCKER_NETWORK so this project stays separate."
+    exit 1
+  fi
+  ok "Network name is free of conflicts."
+else
+  info "Container names and the network name: not checked, $(docker_why)."
 fi
-ok "Network name is free of conflicts."
 
 # ============================================================
 #  Ports — shift any that are taken.
@@ -1128,6 +1159,7 @@ fi
 
 echo
 if [ "$DRY_RUN" -eq 1 ]; then
+  say_docker_unchecked
   say_compose_missing
   printf '%s  DRY RUN — %s was not written.%s\n' "$C_WARN" "$ENV_FILE" "$C_RST"
   printf '  Selected: %s\n' "${CHOSEN[*]}"
@@ -1297,6 +1329,7 @@ write_ports_md() {
 write_ports_md
 
 h1 "Next"
+say_docker_unchecked
 say_compose_missing
 step() { printf '  %s%s%s  %-20s %s%s%s%s\n' "$C_CRIM$C_B" "$1" "$C_RST" "$2" "$C_B$C_INF" "$3" "$C_RST" "${4:+  $C_GREY$4$C_RST}"; }
 step 1 "Your ports"       "cat ports.md"          "bookmark this"

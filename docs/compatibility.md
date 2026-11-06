@@ -104,7 +104,7 @@ answering on its host port, qBittorrent's login included.
 | Setup | Level | Run / case | Notes |
 |---|---|---|---|
 | Docker Engine, rootful, Compose v2 plugin | Physical | `2026.10.1` | |
-| Not installed; daemon down; user not in `docker` group | Mocked | `docker_absent`, `docker_down_not_in_group`, `docker_down_in_group` | |
+| Not installed; daemon down; user not in `docker` group | Mocked | `docker_absent`, `docker_down_not_in_group`, `docker_down_in_group`, `docker_down_rerun`, `docker_absent_rerun` | `doctor.sh` reports each as a blocker. `setup.sh` writes a first install with a warning in the same words, says container names and the network name were not checked, and asks for a re-run once Docker answers. A re-run with Docker installed but not reachable is refused and writes nothing: the install's own ports would look taken and move |
 | Distro `docker.io` without the Compose plugin | Virtualized (Debian 12); Mocked | 2026-11-06, after `2026.10.1`; `docker_no_compose`, `docker_down_no_compose` | `doctor.sh` reports the missing plugin as a blocker. `setup.sh` warns in the same words before its `docker compose` steps, and still writes the config. Docker 20.10.24 from Debian, then the plugin installed by hand as Docker's Compose page describes (5.6.0): the default services started from that config without re-running `setup.sh` |
 | Rootless | Mocked | `docker_rootless` | Detection only. Deploy Untested |
 
