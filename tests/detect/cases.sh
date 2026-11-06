@@ -576,6 +576,75 @@ case_ports_ours() {   # this project's own Sonarr from a previous run: not a cla
   env_is PORT_SONARR 8989
 }
 
+# doctor on a running install (T-074): its own containers on its own ports
+# are no clash. "Own" = the compose project in .env, as setup.sh's held_by_us.
+case_ports_doctor_own() {   # the five defaults up, as every S37 distro row had them
+  installed; install_env <<< "COMPOSE_PROJECT_NAME=anteiku-fx"
+  listen 9696; listen 8181; listen 8989; listen 7878; listen 5055
+  container fx-prowlarr 9696 anteiku-fx prowlarr; container fx-qbittorrent 8181 anteiku-fx qbittorrent
+  container fx-sonarr 8989 anteiku-fx sonarr; container fx-radarr 7878 anteiku-fx radarr
+  container fx-seerr 5055 anteiku-fx seerr
+  doctor info "8989 (Sonarr) is in use by Anteiku's sonarr."
+  doctor info "8181 (qBittorrent) is in use by Anteiku's qbittorrent."
+  doctor ok "No clashes: the default ports in use are this install's own."
+  doctor_lacks "is already in use by"
+  doctor_lacks "setup.sh can shift these"
+  doctor_lacks "All default ports for the arr stack are free."
+}
+
+case_ports_doctor_foreign() {   # another compose project's sonarr on 8989: still a clash
+  installed; install_env <<< "COMPOSE_PROJECT_NAME=anteiku-fx"
+  listen 8989; container media-sonarr 8989 media sonarr
+  doctor warn "8989 (Sonarr) is already in use by: container 'media-sonarr'"
+  doctor note "setup.sh can shift these. Nothing is forced to a fixed port."
+  doctor_lacks "Anteiku's"
+}
+
+case_ports_doctor_both() {   # own sonarr, a foreign container and a process
+  installed; install_env <<< "COMPOSE_PROJECT_NAME=anteiku-fx"
+  listen 8989; container fx-sonarr 8989 anteiku-fx sonarr
+  listen 7878; container old-radarr 7878 media radarr
+  listen 9696 python3
+  doctor info "8989 (Sonarr) is in use by Anteiku's sonarr."
+  doctor warn "7878 (Radarr) is already in use by: container 'old-radarr'"
+  doctor warn "9696 (Prowlarr) is already in use by: python3"
+  doctor note "setup.sh can shift these. Nothing is forced to a fixed port."
+  doctor_lacks "No clashes"
+}
+
+case_ports_doctor_no_env() {   # no install: nothing is "own", whatever its labels
+  listen 8989; container anteiku-sonarr 8989 anteiku sonarr
+  doctor warn "8989 (Sonarr) is already in use by: container 'anteiku-sonarr'"
+  doctor_lacks "Anteiku's"
+}
+
+case_ports_doctor_env_project() {   # COMPOSE_PROJECT_NAME missing from .env: setup.sh's default
+  installed
+  listen 8989; container anteiku-sonarr 8989 anteiku sonarr
+  doctor info "8989 (Sonarr) is in use by Anteiku's sonarr."
+}
+
+case_ports_doctor_shell_project() {   # compose reads COMPOSE_PROJECT_NAME from the shell before .env
+  installed; install_env <<< "COMPOSE_PROJECT_NAME=anteiku-fx"; shell_env COMPOSE_PROJECT_NAME=other
+  listen 8989; container o-sonarr 8989 other sonarr
+  listen 7878; container fx-radarr 7878 anteiku-fx radarr
+  doctor info "8989 (Sonarr) is in use by Anteiku's sonarr."
+  doctor warn "7878 (Radarr) is already in use by: container 'fx-radarr'"
+}
+
+case_ports_ours_other_service() {   # this project's Radarr on 8989 is not Sonarr's own port
+  listen 8989; container fx-radarr 8989 anteiku-fx radarr
+  env_is PORT_SONARR 8990
+}
+
+case_ports_doctor_own_pihole() {   # this install's Pi-hole on 53: not the systemd-resolved trap
+  installed; install_env <<< "COMPOSE_PROJECT_NAME=anteiku-fx"
+  listen 53; container fx-pihole 53 anteiku-fx pihole
+  doctor info "Port 53 is in use by Anteiku's pihole."
+  doctor_lacks "Port 53 is taken by"
+  doctor_lacks "faceplant"
+}
+
 case_ports_dns() {   # systemd-resolved on 53, the Pi-hole trap
   listen 53 systemd-resolve
   is port.53 "used by systemd-resolve"
