@@ -112,3 +112,52 @@ profiles_dropped() {
   done
   printf '%s' "$out"
 }
+
+# ---- images an update left behind (T-070) ------------------------------
+# Nothing here removes anything: update.sh lists them with the command.
+
+# image_name < refs -> as Docker shows them in `image ls` and `ps`:
+# docker.io/ and docker.io/library/ dropped.
+image_name() { sed 's#^docker\.io/library/##; s#^docker\.io/##'; }
+
+# release_images <ref> -> every image pinned at <ref> (a tag or commit):
+# the image: lines of its compose files, ${X_VERSION:-pin} read as the pin.
+release_images() {
+  local f
+  git ls-tree -r --name-only "$1" -- stacks hw compose.yaml 2>/dev/null | grep -E '\.ya?ml$' \
+    | while IFS= read -r f; do git show "$1:$f" 2>/dev/null; done \
+    | sed -n 's/^[[:space:]]*image:[[:space:]]*//p' \
+    | sed -E -e 's/[[:space:]]+#.*$//' -e 's/^["'\'']//' -e 's/["'\''][[:space:]]*$//' \
+             -e 's/\$\{[A-Za-z0-9_]+:-([^}]*)\}/\1/g' \
+    | image_name | LC_ALL=C sort -u
+}
+
+# old_images <way-back ref> -> "image<TAB>size" for each image an earlier
+# release pinned that is still on this machine, used by no container (any
+# project, running or not), and pinned neither here nor at the way back,
+# nor selected by an override in .env. Nothing when Docker or git can't
+# be read: never a guess.
+old_images() {
+  local keep all imgs ps t
+  imgs="$(docker image ls --format '{{.Repository}}:{{.Tag}}	{{.Size}}' 2>/dev/null)" || return 1
+  ps="$(docker ps -a --format '{{.Image}}' 2>/dev/null)" || return 1
+  git rev-parse --verify -q HEAD >/dev/null 2>&1 || return 1
+  keep="$( { release_images HEAD; [ -z "${1:-}" ] || release_images "$1"
+             docker compose config --images 2>/dev/null | image_name; } | LC_ALL=C sort -u)"
+  all="$(git tag --merged HEAD 2>/dev/null | grep -E "$REL_RE" \
+         | while IFS= read -r t; do release_images "$t"; done | LC_ALL=C sort -u)"
+  LC_ALL=C comm -23 <(printf '%s\n' "$all") <(printf '%s\n' "$keep") \
+    | LC_ALL=C comm -23 - <(printf '%s\n' "$ps" | image_name | LC_ALL=C sort -u) \
+    | awk -F'\t' 'NR == FNR { if (NF) want[$0] = 1; next } ($1 in want) && !seen[$1]++' - <(printf '%s\n' "$imgs") \
+    | LC_ALL=C sort
+}
+
+# size_total < "image<TAB>size" lines -> their sizes added up, as Docker
+# writes them (decimal: kB, MB, GB). An upper bound: images share layers.
+size_total() {
+  awk -F'\t' '
+    { n = $2 + 0; u = $2; sub(/^[0-9.]+/, "", u)
+      m = (u == "kB") ? 1e3 : (u == "MB") ? 1e6 : (u == "GB") ? 1e9 : (u == "TB") ? 1e12 : 1
+      t += n * m }
+    END { if (t >= 1e9) printf "%.1f GB\n", t / 1e9; else printf "%d MB\n", t / 1e6 }'
+}

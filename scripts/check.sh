@@ -599,6 +599,13 @@ STUB
   cp "$WORK/env-helpers" "$S/.env"
 fi
 
+# ------------------------------------------------------------ old images
+h1 "update.sh: old images"
+# Which images update.sh lists for removal (T-070): a git repo with three
+# fake releases and a docker stand-in. It never calls the real docker.
+if oi="$(cd "$S" && env -i "PATH=$PATH" "HOME=$WORK" bash tests/old-images.sh 2>&1)"; then ok "$(tail -n 1 <<< "$oi")"
+else err "tests/old-images.sh failed:"; indent <<< "$oi"; fi
+
 # ------------------------------------------------------------ picker
 if [ "$TUI" -eq 1 ]; then
   h1 "Picker (pty)"
