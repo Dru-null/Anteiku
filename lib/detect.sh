@@ -301,6 +301,7 @@ pick_gpu_profile() {
 detect_docker() {
   DET_DOCKER_VER=""; DET_COMPOSE_VER=""; DET_DOCKER_OK=0
   DET_DOCKER_ROOTLESS=0; DET_IN_DOCKER_GROUP=0; DET_DOCKER_NVIDIA=0
+  DET_DOCKER_ROOT=""; DET_DOCKER_STORE=""
   if have docker; then
     DET_DOCKER_VER="$(docker --version 2>/dev/null | sed 's/^Docker version //; s/,.*//')"
     local info
@@ -310,6 +311,11 @@ detect_docker() {
       # nvidia-container-toolkit registers this runtime (nvidia-ctk runtime
       # configure); without it Docker can't give a container the card.
       grep -qE '^ *Runtimes:(.* )?nvidia( |$)' <<< "$info" && DET_DOCKER_NVIDIA=1
+      DET_DOCKER_ROOT="$(sed -n 's/^ *Docker Root Dir: *//p' <<< "$info" | head -n 1)"
+      # Docker 29's default image store is containerd's; the classic one
+      # (overlay2 and friends) has no driver-type line.
+      if grep -qE '^ *driver-type: *io\.containerd\.snapshotter' <<< "$info"; then DET_DOCKER_STORE=containerd
+      elif grep -qE '^ *Storage Driver: *[^ ]' <<< "$info"; then DET_DOCKER_STORE=classic; fi
     fi
     DET_COMPOSE_VER="$(docker compose version --short 2>/dev/null || true)"
   fi
@@ -445,7 +451,32 @@ cron_hint() {
 }
 
 # --- disk -------------------------------------------------------------
-# fs_of <path> -> filesystem mountpoint; free_gb <path> -> integer GB
+# fs_of <path> -> filesystem mountpoint; free_gb <path> -> whole GB free.
+# GB are decimal, as the README states sizes, and floored from 1K blocks:
+# df's own --block-size rounds up (9.9 GB would read 10).
 fs_of()    { df -P "$1" 2>/dev/null | awk 'NR==2{print $6}'; }
 fstype_of(){ df -PT "$1" 2>/dev/null | awk 'NR==2{print $2}'; }
-free_gb()  { df -P --block-size=1G "$1" 2>/dev/null | awk 'NR==2{print $4}'; }
+free_gb()  { df -P "$1" 2>/dev/null | awk 'NR==2{printf "%d\n", $4 * 1024 / 1000000000}'; }
+
+# detect_image_store (after detect_docker) -> DET_IMAGE_STORE, the folder
+# Docker keeps images in, or empty with DET_IMAGE_STORE_WHY saying why.
+# Docker 29's default store keeps them in containerd's root: the "root"
+# line of its config, else /var/lib/containerd. The classic store keeps
+# them in Docker Root Dir. Rootless Docker runs a containerd of its own,
+# configured elsewhere: not guessed.
+detect_image_store() {
+  local R="${ANTEIKU_DETECT_ROOT:-}" root
+  DET_IMAGE_STORE=""; DET_IMAGE_STORE_WHY=""
+  if [ -z "${DET_DOCKER_VER:-}" ]; then DET_IMAGE_STORE_WHY="Docker is not installed"
+  elif [ "${DET_DOCKER_OK:-0}" -ne 1 ]; then DET_IMAGE_STORE_WHY="Docker is not reachable"
+  elif [ "${DET_DOCKER_STORE:-}" = containerd ]; then
+    if [ "${DET_DOCKER_ROOTLESS:-0}" -eq 1 ]; then DET_IMAGE_STORE_WHY="rootless Docker's image store is not read"
+    else
+      # A top-level key: TOML puts those before the first [section].
+      root="$(sed -n '/^[[:space:]]*\[/q; s/^[[:space:]]*root[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$R/etc/containerd/config.toml" 2>/dev/null | head -n 1)"
+      DET_IMAGE_STORE="${root:-/var/lib/containerd}"
+    fi
+  elif [ "${DET_DOCKER_STORE:-}" = classic ] && [ -n "${DET_DOCKER_ROOT:-}" ]; then DET_IMAGE_STORE="$DET_DOCKER_ROOT"
+  else DET_IMAGE_STORE_WHY="docker info does not say"
+  fi
+}

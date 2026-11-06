@@ -14,7 +14,7 @@ cd "$(dirname "$0")" || exit 1
 
 banner "anteiku $S_DOT doctor" "read-only: what you have, what works, what will bite"
 
-detect_os; detect_cpu; detect_mem; detect_gpu; detect_docker; detect_tailscale
+detect_os; detect_cpu; detect_mem; detect_gpu; detect_docker; detect_image_store; detect_tailscale
 
 # ---------------------------------------------------------------- system
 h1 "System"
@@ -223,19 +223,33 @@ fi
 
 # ------------------------------------------------------------------ disk
 h1 "Storage"
-ROOT_FS="$(fs_of .)"; ROOT_FREE="$(free_gb .)"; ROOT_TYPE="$(fstype_of .)"
-kv "This directory" "$ROOT_FS  ($ROOT_TYPE, ${ROOT_FREE} GB free)"
+HERE_FS="$(fs_of .)"; HERE_FREE="$(free_gb .)"; HERE_TYPE="$(fstype_of .)"
+kv "This directory" "$HERE_FS  ($HERE_TYPE, ${HERE_FREE} GB free)"
+# Images don't go where Anteiku was cloned: Docker keeps them in its own
+# folder (detect_image_store, T-069). The sizes are judged there.
+IMG_FS=""
+[ -n "$DET_IMAGE_STORE" ] && IMG_FS="$(fs_of "$DET_IMAGE_STORE")"
+if [ -n "$IMG_FS" ]; then
+  IMG_FREE="$(free_gb "$DET_IMAGE_STORE")"
+  kv "Images" "$IMG_FS  ($(fstype_of "$DET_IMAGE_STORE"), ${IMG_FREE} GB free; $DET_IMAGE_STORE)"
+  [ "$IMG_FS" != "$HERE_FS" ] && note "Docker keeps images in $DET_IMAGE_STORE, not in this folder."
+else
+  IMG_FREE="$HERE_FREE"
+  kv "Images" "unknown: ${DET_IMAGE_STORE_WHY:-$DET_IMAGE_STORE is not on this machine}"
+  note "Judged on this folder instead. Docker keeps images in its own folder,"
+  note "usually /var/lib/containerd or /var/lib/docker, often on another disk."
+fi
 # Image sizes as a default Docker 29 install stores them (T-068): the
 # starter set about 4 GB, every service about 17 GB. update.sh pulls the
 # new images while the old ones are still there.
-if [ "${ROOT_FREE:-0}" -lt 10 ]; then
+if [ "${IMG_FREE:-0}" -lt 10 ]; then
   err "Under 10 GB free. The starter set's images take about 4 GB, and an update needs room for new ones."
-elif [ "${ROOT_FREE:-0}" -lt 25 ]; then
-  warn "${ROOT_FREE} GB free — enough for the starter set, not for every service: all the images take about 17 GB."
-elif [ "${ROOT_FREE:-0}" -lt 50 ]; then
-  warn "${ROOT_FREE} GB free — enough for images and configs, not a library."
+elif [ "${IMG_FREE:-0}" -lt 25 ]; then
+  warn "${IMG_FREE} GB free — enough for the starter set, not for every service: all the images take about 17 GB."
+elif [ "${IMG_FREE:-0}" -lt 50 ]; then
+  warn "${IMG_FREE} GB free — enough for images and configs, not a library."
 else
-  ok "${ROOT_FREE} GB free here."
+  ok "${IMG_FREE} GB free for images."
 fi
 note ""
 note "The rule that saves people the most pain: your DOWNLOADS and your"

@@ -184,11 +184,21 @@ esac
 EOF
   if [ "$1" = up ]; then echo "$2" > "$T/ts.ip"; echo "$3" > "$T/ts.name"; fi
 }
-disk()      { _frozen disk; printf '%s %s %s\n' "$1" "${2:-ext4}" "${3:-/}" > "$T/disk"; }  # freeGB [type] [mount]
+# Free space in decimal GB, as the README states sizes; df reports 1K
+# blocks, so a whole GB is 976563 of them (rounded up, never under).
+disk()      { _frozen disk; _disk '*' "$((${1} * 976563))" "${2:-ext4}" "${3:-/}"; }  # freeGB [type] [mount]: every path
+disk_kb()   { _frozen disk_kb; _disk '*' "$1" "${2:-ext4}" "${3:-/}"; }               # free 1K blocks [type] [mount]
+disk_at()   { _frozen disk_at; _disk "$1" "$(($2 * 976563))" "${3:-ext4}" "${4:-/}"; } # path freeGB [type] [mount]: that path and below
+no_path()   { _frozen no_path; _disk "$1" - - -; }                                     # df: no such file or directory
+_disk()     { sed -i "\\|^$1 |d" "$T/disks" 2>/dev/null; printf '%s %s %s %s\n' "$@" >> "$T/disks"; }
+docker_store(){ # containerd (Docker 29's default) | classic; [Docker Root Dir]
+  _frozen docker_store; echo "$1" > "$T/docker.store"; [ -n "${2:-}" ] && echo "$2" > "$T/docker.root"; return 0; }
+containerd_conf(){ _frozen containerd_conf; mkdir -p "$R/etc/containerd"; cat > "$R/etc/containerd/config.toml"; }
 no_tool()   { _frozen no_tool; local t; for t in "$@"; do rm -f "$FX/bin/$t"; done; }
 
 # The machine every case starts from: Ubuntu 24.04 on x86_64, 16 GB,
-# no GPU, Docker running, nothing listening, 200 GB free on ext4.
+# no GPU, Docker running (default image store, no containerd config),
+# nothing listening, 200 GB free on ext4 for every path.
 defaults() {
   mkdir -p "$R/etc" "$R/proc" "$T" "$FX/bin" "$FX/home"
   os_release <<'EOF'
@@ -206,6 +216,7 @@ EOF
   printf 'render:x:992:\nvideo:x:44:\n' > "$T/groups"
   user_groups "you adm docker"
   : > "$T/docker.up"; echo "2.40.3" > "$T/compose"
+  docker_store containerd /var/lib/docker
   disk 200
   # What lspci's stand-in lists besides GPUs. Intel's vendor id on a host
   # bridge: only display devices (class 0x03xxxx) may count as a GPU.
@@ -261,8 +272,12 @@ case "${1:-}" in
         echo "Server Version: 29.0.1"
         if [ -f "$T/docker.nvidia" ]; then echo " Runtimes: io.containerd.runc.v2 nvidia runc"
         else echo " Runtimes: io.containerd.runc.v2 runc"; fi
+        # Lines as Docker 29 prints them; the classic store has no driver-type.
+        if [ "$(cat "$T/docker.store")" = classic ]; then echo " Storage Driver: overlay2"; echo "  Backing Filesystem: extfs"
+        else echo " Storage Driver: overlayfs"; echo "  driver-type: io.containerd.snapshotter.v1"; fi
         echo " Default Runtime: runc"; echo " Security Options:"; echo "  seccomp"
-        [ -f "$T/docker.rootless" ] && echo "  rootless"; exit 0 ;;
+        [ -f "$T/docker.rootless" ] && echo "  rootless"
+        echo " Docker Root Dir: $(cat "$T/docker.root")"; exit 0 ;;
   compose) [ "${2:-}" = version ] && [ -f "$T/compose" ] && { cat "$T/compose"; exit 0; }
            [ "${2:-}" = version ] || odd "$@"
            echo "docker: unknown command: docker compose" >&2; exit 1 ;;
@@ -294,13 +309,24 @@ case "${1:-}" in
   *) odd "$@" ;;
 esac
 EOF
+  # One path per call, as the scripts use it: the longest disk_at prefix
+  # wins, else the '*' line. Each mount is its own device.
   _stub df <<'EOF'
-read -r free type mnt < "$T/disk"
-kb=$((free * 1048576)); used=$((kb / 2))
-case "$*" in
-  "-P --block-size=1G "*) printf 'Filesystem     1073741824-blocks  Used Available Capacity Mounted on\n/dev/fx1 %17s %5s %9s %8s %s\n' $((free * 3)) $((free * 2)) "$free" "67%" "$mnt" ;;
-  "-PT "*) printf 'Filesystem     Type 1024-blocks      Used Available Capacity Mounted on\n/dev/fx1       %-4s %11s %9s %9s %8s %s\n' "$type" $((kb * 3)) $((kb * 2)) "$kb" "67%" "$mnt" ;;
-  "-P "*) printf 'Filesystem     1024-blocks      Used Available Capacity Mounted on\n/dev/fx1   %11s %9s %9s %8s %s\n' $((kb * 3)) $((kb * 2)) "$kb" "67%" "$mnt" ;;
+[ $# -ge 2 ] || odd "$@"
+p="${!#}"; best=""; kb=""
+while read -r at k ty mn; do
+  if [ "$at" = '*' ]; then [ -z "$best" ] && { kb=$k; type=$ty; mnt=$mn; }
+  elif [ "$p" = "$at" ] || [ "${p#"$at"/}" != "$p" ]; then
+    [ "${#at}" -gt "${#best}" ] && { best=$at; kb=$k; type=$ty; mnt=$mn; }
+  fi
+done < "$T/disks"
+[ "$kb" = - ] && { echo "df: $p: No such file or directory" >&2; exit 1; }
+dev="/dev/fx$(printf '%s' "$mnt" | cksum | cut -c1-4)"
+case "${*:1:$#-1}" in
+  # GNU df rounds up to whole blocks; pre-T-069 doctor asked for GiB.
+  "-P --block-size=1G") printf 'Filesystem     1073741824-blocks  Used Available Capacity Mounted on\n%s %17s %5s %9s %8s %s\n' "$dev" 0 0 $(( (kb + 1048575) / 1048576 )) "67%" "$mnt" ;;
+  "-PT") printf 'Filesystem     Type 1024-blocks      Used Available Capacity Mounted on\n%s       %-4s %11s %9s %9s %8s %s\n' "$dev" "$type" $((kb * 3)) $((kb * 2)) "$kb" "67%" "$mnt" ;;
+  "-P") printf 'Filesystem     1024-blocks      Used Available Capacity Mounted on\n%s   %11s %9s %9s %8s %s\n' "$dev" $((kb * 3)) $((kb * 2)) "$kb" "67%" "$mnt" ;;
   *) odd "$@" ;;
 esac
 EOF
@@ -317,6 +343,7 @@ detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker; det
 for v in DET_DISTRO DET_DISTRO_VER DET_KERNEL DET_ARCH DET_TZ DET_UID DET_GID DET_CPU DET_CORES \
   DET_MEM_MIB DET_MEM_GIB DET_SWAP_MIB DET_SWAP_GIB DET_GPU_VENDORS DET_GPU_OTHER DET_NVIDIA_DRIVER DET_RENDER_GID DET_INTEL_RENDER DET_AMD_RENDER \
   DET_DOCKER_VER DET_DOCKER_NVIDIA DET_COMPOSE_VER DET_DOCKER_OK DET_DOCKER_ROOTLESS DET_IN_DOCKER_GROUP \
+  DET_DOCKER_ROOT DET_DOCKER_STORE \
   DET_TS_INSTALLED DET_TS_UP DET_TS_IP DET_TS_NAME; do printf "%s=%s\n" "$v" "${!v}"; done
 printf "DET_GPUS=%s\n" "$(printf "%s" "$DET_GPUS" | paste -sd ";")"
 printf "DET_RENDER_NODES=%s\n" "$(printf "%s" "$DET_RENDER_NODES" | paste -sd ";")"
@@ -330,7 +357,8 @@ for p in 53 5055 5299 6767 7878 8181 8686 8989 9696; do
   esac
 done
 printf "DET_TZ_FROM=%s\nfamily=%s\nhint=%s\ncron_hint=%s\n" "$DET_TZ_FROM" "$(pkg_family)" "$(install_hint ss curl)" "$(cron_hint)"
-printf "fs_of=%s\nfstype_of=%s\nfree_gb=%s\n" "$(fs_of .)" "$(fstype_of .)" "$(free_gb .)"'
+printf "fs_of=%s\nfstype_of=%s\nfree_gb=%s\n" "$(fs_of .)" "$(fstype_of .)" "$(free_gb .)"
+detect_image_store; printf "image_store=%s\nimage_store_why=%s\n" "$DET_IMAGE_STORE" "$DET_IMAGE_STORE_WHY"'
 
 _run() { # probe | doctor | setup | update_check | update | update_schedule: once per case, on first use
   case " $RAN " in *" $1 "*) return 0 ;; esac
@@ -372,7 +400,7 @@ _check() { # label expected got
 }
 current() { CUR="$1"; printf '      %s (%s)\n' "$2" "$1" >> "$FX/report"; }   # to the end of the case
 
-# is <DET_X|pick|port.N|fs_of|fstype_of|free_gb> <value>
+# is <DET_X|pick|port.N|fs_of|fstype_of|free_gb|image_store|image_store_why> <value>
 is() { _run probe; _check "$1" "$2" "$(sed -n "s/^$1=//p" "$FX/probe" | head -n 1)"; }
 # env_is KEY value / env_absent KEY: the .env setup.sh --dry-run would write
 _envline() { sed -n '/Configuration to write/,$p' "$FX/setup" | sed -n "s/^  $1=//p" | head -n 1; }

@@ -31,6 +31,7 @@ Nothing starts by itself. `setup.sh` writes the config and stops; you read it, t
 An old laptop, a mini-PC or a spare desktop. 4 GiB of RAM works, 8 is comfortable.
 Linux reports a little less than is installed (about 3.7 GiB on a 4 GiB machine); `doctor.sh` allows for that.
 Disk: 10 GB free for the starter set, 25 GB for every service, plus room for your media.
+The images go where Docker keeps them, usually the system disk, not the folder you clone into; `doctor.sh` checks both.
 If it already runs Linux with Docker, skip to [Running it yourself](#running-it-yourself).
 
 <details>
