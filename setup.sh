@@ -802,6 +802,7 @@ GPU_PROFILE="cpu"
 if _sel_has jellyfin; then
   h1 "Transcoding hardware"
   GPU_PROFILE="$(pick_gpu_profile)"
+  NV_MISSING="$(nvidia_missing)"
   case "$GPU_PROFILE" in
     intel)
       ok "Intel Quick Sync (tested path)."
@@ -813,25 +814,47 @@ if _sel_has jellyfin; then
           note ""
           note "You also have an NVIDIA card. Intel is still the better"
           note "pick here: purpose-built encoder, far less setup, and it"
-          note "leaves the discrete card free. Override with"
-          note "GPU_PROFILE_OVERRIDE=nvidia ./setup.sh if you disagree." ;;
+          if [ -z "$NV_MISSING" ]; then
+            note "leaves the discrete card free. Override with"
+            note "GPU_PROFILE_OVERRIDE=nvidia ./setup.sh if you disagree."
+          else
+            note "leaves the discrete card free. The NVIDIA card can't be"
+            note "used here anyway. Missing:"
+            while IFS= read -r m; do note "  - $m"; done <<< "$NV_MISSING"
+          fi ;;
       esac ;;
     nvidia)
       warn "NVIDIA NVENC — this path is NOT maintainer-tested."
-      note "Requires the proprietary driver (nouveau has no NVENC) and"
-      note "nvidia-container-toolkit on the host. See hw/gpu-nvidia.yaml."
-      note "Falls back to CPU transcoding if either is missing." ;;
+      note "The proprietary driver is loaded and Docker lists the nvidia"
+      note "runtime (nvidia-container-toolkit). See hw/gpu-nvidia.yaml." ;;
     amd)
       warn "AMD VAAPI — this path is NOT maintainer-tested."
       note "device: $DET_AMD_RENDER" ;;
     cpu)
-      ok "No usable GPU found — CPU transcoding."
+      case " $DET_GPU_VENDORS " in
+        *" nvidia "*)
+          warn "NVIDIA card found, but Docker can't give it to Jellyfin — CPU transcoding."
+          note "Missing:"
+          while IFS= read -r m; do note "  - $m"; done <<< "$NV_MISSING"
+          note "A container that asks for a GPU Docker can't provide does"
+          note "not start; it does not fall back to the CPU. Install what is"
+          note "missing (see hw/gpu-nvidia.yaml), then re-run ./setup.sh." ;;
+        *)
+          ok "No usable GPU found — CPU transcoding."
+          [ -n "$DET_GPU_OTHER" ] && note "$DET_GPU_OTHER: no video encoder." ;;
+      esac
       note "Fine for direct play and light use. See hw/cpu-only.yaml." ;;
   esac
   # Allow an explicit override.
   if [ -n "${GPU_PROFILE_OVERRIDE:-}" ]; then
     GPU_PROFILE="$GPU_PROFILE_OVERRIDE"
     warn "overridden by GPU_PROFILE_OVERRIDE -> $GPU_PROFILE"
+    if [ "$GPU_PROFILE" = nvidia ] && [ -n "$NV_MISSING" ]; then
+      warn "Jellyfin will not start with this profile. Missing:"
+      while IFS= read -r m; do note "  - $m"; done <<< "$NV_MISSING"
+      note "Seen with a card on nouveau: docker compose up fails, Jellyfin"
+      note "stays Created, and the error names libnvidia-ml.so.1."
+    fi
   fi
   if [ "$GPU_PROFILE" != "cpu" ] && [ -z "${DET_RENDER_GID:-}" ]; then
     warn "Could not determine the render group id."

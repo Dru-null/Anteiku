@@ -6,15 +6,24 @@
 #  REQUIRED ON THE HOST FIRST - this will not work without it:
 #
 #    1. The proprietary NVIDIA driver. The open-source 'nouveau' driver
-#       has NO working NVENC encoder. Check which you are on:
+#       has NO working NVENC encoder. ./doctor.sh says which driver the
+#       card is on, or:
 #         lspci -k | grep -A3 -i nvidia | grep 'Kernel driver'
 #       If it says nouveau, hardware encoding is not available to you
 #       until you install the proprietary driver.
 #
 #    2. nvidia-container-toolkit, so Docker can pass the GPU through:
 #         https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/
+#       It registers the 'nvidia' runtime: docker info | grep Runtimes
 #       Verify with:
 #         docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
+#
+#  setup.sh picks this file only when it finds both. Without them,
+#  Jellyfin does NOT start; nothing falls back to the CPU. Seen with the
+#  toolkit installed and the card on nouveau (GPU_PROFILE_OVERRIDE=nvidia):
+#  'docker compose up' fails, the container stays Created, and the error
+#  names libnvidia-ml.so.1. Switch COMPOSE_FILE in .env to
+#  hw/cpu-only.yaml, or re-run ./setup.sh.
 #
 #  Then in Jellyfin:
 #    Dashboard > Playback > Transcoding

@@ -89,7 +89,11 @@ h1 "Graphics and transcoding"
 if [ -n "$DET_GPUS" ]; then
   while IFS= read -r g; do [ -n "$g" ] && kv "GPU" "$(echo "$g" | cut -c1-70)"; done <<< "$DET_GPUS"
 else
-  kv "GPU" "none detected (or lspci not installed)"
+  kv "GPU" "none detected"
+fi
+if [ -n "$DET_GPUS" ] && ! have lspci; then
+  note "lspci is not installed (package pciutils), so no model names;"
+  note "the vendor:device ids above identify the card."
 fi
 
 if [ -n "$DET_RENDER_NODES" ]; then
@@ -122,8 +126,15 @@ case "$DET_GPU_VENDORS" in
   *nvidia*)
     warn "NVIDIA NVENC — this path is NOT maintainer-tested."
     note "NVIDIA only. Good encoder (NVENC), but it needs the"
-    note "nvidia-container-toolkit installed before Docker can see it."
-    note "Consumer cards also cap concurrent encode sessions." ;;
+    note "proprietary driver and nvidia-container-toolkit."
+    NV_MISSING="$(nvidia_missing)"
+    if [ -z "$NV_MISSING" ]; then
+      ok "Both found: driver loaded, and Docker lists the nvidia runtime."
+      note "Consumer cards also cap concurrent encode sessions."
+    else
+      warn "Not usable yet, so setup.sh picks CPU transcoding. Missing:"
+      while IFS= read -r m; do note "  - $m"; done <<< "$NV_MISSING"
+    fi ;;
   *intel*)
     note "Intel Quick Sync — the sweet spot for this job. Low power, good"
     note "quality, minimal setup. Just pass the render node." ;;
@@ -132,7 +143,12 @@ case "$DET_GPU_VENDORS" in
     note "From the docs: VAAPI through amdgpu, the same interface as Intel."
     note "Expect more setup than Intel, and lower quality at a given bitrate." ;;
   *)
-    note "No GPU detected — CPU transcoding only." ;;
+    if [ -n "$DET_GPU_OTHER" ]; then
+      note "Only $DET_GPU_OTHER: no video encoder."
+      note "CPU transcoding only."
+    else
+      note "No GPU detected — CPU transcoding only."
+    fi ;;
 esac
 note ""
 note "And the honest answer most guides skip: you may not need any of it."
