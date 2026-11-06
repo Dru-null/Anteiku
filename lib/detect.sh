@@ -322,6 +322,30 @@ detect_docker() {
   id -nG 2>/dev/null | tr ' ' '\n' | grep -qx docker && DET_IN_DOCKER_GROUP=1
 }
 
+# No Docker, or a daemon this user can't reach: doctor's blockers and
+# setup.sh's warning or refusal say it in the same words (T-078).
+MSG_DOCKER_ABSENT="Docker is not installed. Nothing here can run without it."
+MSG_DOCKER_INSTALL="Install: https://docs.docker.com/engine/install/"
+MSG_DOCKER_DOWN="Docker is installed but the daemon is not reachable as this user."
+MSG_DOCKER_GROUP="You are not in the 'docker' group. Fix, then log out and back in:"
+MSG_DOCKER_GROUP_FIX="  sudo usermod -aG docker \$USER"
+MSG_DOCKER_START="Is it running?  sudo systemctl status docker"
+# docker_why -> why Docker can't be asked: "Docker is not installed" or
+# "Docker is not reachable"; nothing when it can.
+docker_why() {
+  if [ -z "${DET_DOCKER_VER:-}" ]; then echo "Docker is not installed"
+  elif [ "${DET_DOCKER_OK:-0}" -ne 1 ]; then echo "Docker is not reachable"; fi
+}
+# docker_fix_notes: how to reach an installed daemon, after MSG_DOCKER_DOWN.
+docker_fix_notes() {
+  if [ "${DET_IN_DOCKER_GROUP:-0}" -eq 0 ]; then
+    note "$MSG_DOCKER_GROUP"
+    note "$MSG_DOCKER_GROUP_FIX"
+  else
+    note "$MSG_DOCKER_START"
+  fi
+}
+
 # Docker without the Compose v2 plugin (a distro's docker.io): doctor's
 # blocker and setup.sh's warning say it in the same words (T-073).
 MSG_COMPOSE_MISSING="Compose v2 plugin missing. The old 'docker-compose' script will not work here."
