@@ -86,7 +86,7 @@ else
   note "$(install_hint "${MISSING[@]}")"
 fi
 if ! have crontab; then
-  warn "crontab not found: update.sh --schedule can't add the weekly check."
+  warn "$MSG_CRONTAB_MISSING"
   note "$(cron_hint)"
 fi
 

@@ -60,6 +60,8 @@ case_baseline() {   # the default machine, unchanged
   doctor kv Compose "2.40.3 (plugin)"; doctor_lacks "v2"   # plugin versions aren't "v2" (T-077)
   setup ok "No container name collisions."; setup ok "Network name is free of conflicts."
   setup_lacks "Not checked without Docker"
+  next step 1 "Your ports" "cat ports.md" "bookmark this"
+  next_lacks "Not checked without Docker"; next_lacks "Compose plugin"
   doctor ok "All default ports for the arr stack are free."
   doctor kv GPU "none detected"
   doctor note "No GPU detected — CPU transcoding only."
@@ -517,6 +519,10 @@ case_docker_absent() {
   setup note "Not checked without Docker: container name collisions, the network name."
   setup_lacks "No container name collisions."; setup_lacks "Network name is free of conflicts."
   env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
+  # The real run says it again right above the steps (T-060).
+  next warn "Docker is not installed. Nothing here can run without it."
+  next note "Not checked without Docker: container name collisions, the network name."
+  next_lacks "Compose plugin ('docker compose') is missing"
 }
 
 case_docker_down_not_in_group() {
@@ -541,6 +547,9 @@ case_docker_down_in_group() {
   setup note "Is it running?  sudo systemctl status docker"
   setup note "Once ./doctor.sh says the daemon is reachable, re-run this script"
   setup_lacks "No container name collisions."; setup_lacks "You are not in the 'docker' group"
+  next warn "Docker is installed but the daemon is not reachable as this user."
+  next note "Is it running?  sudo systemctl status docker"
+  next note "Once ./doctor.sh says the daemon is reachable, re-run this script"
 }
 
 # A re-run can't be written without Docker: the install's own containers
@@ -583,6 +592,9 @@ case_docker_no_compose() {   # distro docker.io without the compose plugin
   setup note "Install the plugin: https://docs.docker.com/compose/install/"
   setup note "Until it is installed, every 'docker compose' command fails."
   env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
+  next warn "The Compose plugin ('docker compose') is missing."
+  next note "Until it is installed, every 'docker compose' command fails."
+  next_lacks "Not checked without Docker"
 }
 
 case_docker_down_no_compose() {   # the plugin check needs no daemon
@@ -1075,6 +1087,53 @@ EOF2
   exits update_schedule 1
   upd update_schedule note "Install: sudo pacman -S cronie && sudo systemctl enable --now cronie"
   upd_lacks update_schedule "apt install"
+}
+
+# setup.sh's "Next" steps, from a real --yes run in a copy (setup_real).
+# Step 6 offers ./update.sh --schedule only where it can work (T-060).
+M_CRON="crontab not found: update.sh --schedule can't add the weekly check."
+case_tools_next_no_crontab() {   # Ubuntu, cron not installed
+  next step 4 "Start it" "docker compose up -d"
+  next step 6 "Weekly update check" "./update.sh --schedule" "needs cron first"
+  next note "$M_CRON"
+  next note "Install: sudo apt install cron"
+  next_lacks "one line in your crontab"
+}
+
+case_tools_next_no_crontab_fedora() {   # Fedora ships no cron: its own hint
+  os_release <<'EOF2'
+NAME="Fedora Linux"
+ID=fedora
+VERSION_ID=43
+EOF2
+  next note "$M_CRON"
+  next note "Install: sudo dnf install cronie && sudo systemctl enable --now crond"
+  next_lacks "apt install"
+}
+
+case_tools_next_crontab_empty() {   # cron installed, nothing scheduled yet
+  crontab_lists < /dev/null
+  next step 6 "Weekly update check" "./update.sh --schedule" "one line in your crontab"
+  next_lacks "crontab not found"; next_lacks "Install:"
+  doctor_lacks "crontab not found"
+}
+
+case_tools_next_crontab_scheduled() {   # the weekly line is there for this folder: no step 6
+  crontab_lists <<EOF2
+30 6 * * 1 cd '$FX/real' && ./update.sh --cron >/dev/null 2>&1 # anteiku-update $FX/real
+EOF2
+  next step 5 "See what is up" "docker compose ps"
+  next_lacks "Weekly update check"; next_lacks "crontab not found"
+}
+
+case_tools_next_update_off() {   # update checks off: no step 6, cron or not
+  prev_env <<'ENV'
+COMPOSE_PROFILES=sonarr
+PORT_SONARR=8989
+UPDATE_MODE=off
+ENV
+  next step 4 "Apply it" "docker compose up -d" "starts what is new; running services are left alone"
+  next_lacks "Weekly update check"; next_lacks "crontab not found"
 }
 
 # ------------------------------------------------------------ captured

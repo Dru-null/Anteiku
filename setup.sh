@@ -1342,9 +1342,17 @@ else
   step 4 "Start it"       "docker compose up -d"
 fi
 step 5 "See what is up"   "docker compose ps"
-if [ "$UPDATE_MODE" != off ] && ! { have crontab && crontab -l 2>/dev/null \
-     | awk -v t="# anteiku-update $PWD" 'substr($0, length($0) - length(t) + 1) == t {f=1} END {exit !f}'; }; then
-  step 6 "Weekly update check" "./update.sh --schedule" "one line in your crontab"
+# Step 6 only where it can work: without crontab, --schedule just fails
+# ("crontab not found"); say what to install first, as doctor does (T-060).
+if [ "$UPDATE_MODE" != off ]; then
+  if ! have crontab; then
+    step 6 "Weekly update check" "./update.sh --schedule" "needs cron first"
+    note "$MSG_CRONTAB_MISSING"
+    note "$(cron_hint)"
+  elif ! crontab -l 2>/dev/null \
+       | awk -v t="# anteiku-update $PWD" 'substr($0, length($0) - length(t) + 1) == t {f=1} END {exit !f}'; then
+    step 6 "Weekly update check" "./update.sh --schedule" "one line in your crontab"
+  fi
 fi
 echo
 note "Per-service setup, in order, is in stacks/<stack>.md."
