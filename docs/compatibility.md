@@ -67,13 +67,14 @@ notifications.
 | Intel, xe (Lunar Lake and newer) | Mocked | `gpu_intel_xe` | Detection only |
 | Intel, no `lspci` | Mocked | `gpu_no_lspci_intel` | Still found, from `/sys` |
 | AMD, amdgpu | Mocked | `gpu_amd` | Detection only. VAAPI Untested |
-| NVIDIA, proprietary driver | Mocked | `gpu_nvidia_driver` | Detection only. NVENC Untested. The container toolkit is not checked |
-| NVIDIA, nouveau | Physical (detection); Mocked, **known problem** | `2026.10.1`; `gpu_nvidia_nouveau` | On the Physical machine Intel wins, so nouveau is never used. Alone, `setup.sh` picks the NVIDIA profile anyway; nouveau has no NVENC. NVENC Untested |
-| NVIDIA, no driver | Mocked, **known problem** | `gpu_nvidia_no_driver` | NVIDIA profile picked from `lspci` alone |
-| NVIDIA, no `lspci` | Mocked, **known problem** | `gpu_no_lspci` | Never picked, even with the driver loaded |
-| virtio-gpu (VM) | Mocked | `gpu_virtio` | CPU transcoding |
-| QEMU standard VGA | Mocked | `gpu_bochs` | CPU transcoding |
-| ASPEED (server BMC) | Mocked | `gpu_aspeed` | CPU transcoding |
+| NVIDIA, proprietary driver + container toolkit | Mocked | `gpu_nvidia_driver` | Picked only when the `nvidia` driver is bound to the card and `docker info` lists the `nvidia` runtime. NVENC Untested |
+| NVIDIA, nouveau | Physical (failure path); Mocked | `main`, 2026-11-06; `gpu_nvidia_nouveau`, `gpu_nvidia_override_unready` | CPU transcoding; `setup.sh` names the missing driver. Forced with `GPU_PROFILE_OVERRIDE=nvidia` on that machine (toolkit installed): `docker compose up` fails, Jellyfin stays Created, the error names `libnvidia-ml.so.1`. Nothing falls back to the CPU. NVENC Untested |
+| NVIDIA, no driver | Mocked | `gpu_nvidia_no_driver` | CPU transcoding; `setup.sh` names what is missing |
+| NVIDIA, driver but no toolkit, or Docker not reachable | Mocked | `gpu_nvidia_no_runtime`, `gpu_nvidia_docker_down` | CPU transcoding; `setup.sh` says which |
+| NVIDIA, no `lspci` | Mocked | `gpu_no_lspci` | Found from `/sys`, shown with its PCI ids. Picked when the driver and runtime are there |
+| virtio-gpu (VM) | Mocked | `gpu_virtio` | CPU transcoding; both scripts say the adapter has no video encoder |
+| QEMU standard VGA | Mocked | `gpu_bochs` | CPU transcoding; as above |
+| ASPEED (server BMC) | Mocked | `gpu_aspeed` | CPU transcoding; as above |
 | No GPU | Mocked | `baseline` | CPU transcoding. Detection only |
 | No `/dev/dri/by-path` | Mocked | `gpu_no_by_path` | CPU transcoding; the node is shown, never written to `.env` |
 | Render group: `render`, `video`, none | Mocked | `gpu_no_render_group`, `gpu_video_group_only`, `gpu_no_group_no_node` | |
@@ -114,7 +115,6 @@ notifications.
 | Script says | This page |
 |---|---|
 | `doctor.sh`, ARM64: "a few are x86-only" | All pinned images publish `linux/arm64` |
-| `setup.sh`, NVIDIA: "Falls back to CPU transcoding if either is missing" | Not run. Docker normally refuses to start a container whose GPU request it can't meet, so expect no Jellyfin rather than CPU transcoding |
 
 Both scripts label the NVIDIA and AMD paths "NOT maintainer-tested";
 `doctor.sh` labels rootless Docker too. Neither labels ARM64.

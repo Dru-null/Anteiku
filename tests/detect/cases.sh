@@ -19,18 +19,28 @@
 #  "written" fixtures are typed from upstream formats (lspci, os-release,
 #  /proc); "captured" ones were read from a real machine, hardware lines
 #  only (no names, addresses or timezone), and from "..." says which.
+#  A gpu line also puts the card in sysfs: gpu "<lspci line>" vendor:device
+#  [kernel driver]; override sets GPU_PROFILE_OVERRIDE for setup.sh.
 #  Only what Anteiku reads is checked: no CPU flags, no VRAM, and nothing
 #  about DET_CPU_VENDOR, DET_NVIDIA_RENDER or DET_RENDER_GROUP (unused).
 # ============================================================
 
-# Lines the GPU cases share.
+# Lines the GPU cases share, and the cards' PCI vendor:device ids.
 L_INTEL_UHD630='00:02.0 VGA compatible controller: Intel Corporation CoffeeLake-H GT2 [UHD Graphics 630]'
 L_INTEL_ARC='00:02.0 VGA compatible controller: Intel Corporation Lunar Lake [Intel Arc Graphics 130V / 140V] (rev 04)'
 L_AMD_6700XT='03:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Navi 22 [Radeon RX 6700/6700 XT/6750 XT / 6800M/6850M XT] (rev c1)'
 L_NV_3060='01:00.0 VGA compatible controller: NVIDIA Corporation GA104 [GeForce RTX 3060 Ti] (rev a1)'
 L_NV_1050M='01:00.0 3D controller: NVIDIA Corporation GP107M [GeForce GTX 1050 Mobile] (rev a1)'
+I_UHD630=8086:3e9b; I_ARC=8086:64a0; I_6700XT=1002:73df; I_3060=10de:2486; I_1050M=10de:1c8d
 P_INTEL='0000:00:02.0'; P_AMD='0000:03:00.0'; P_NV='0000:01:00.0'
 BP=/dev/dri/by-path
+# What the scripts say about a card that isn't ready (nvidia_missing).
+M_NOUVEAU="  - the proprietary NVIDIA driver (the card is on nouveau, which has no NVENC)"
+M_NODRV="  - the proprietary NVIDIA driver (no driver is loaded for the card)"
+M_TOOLKIT="  - nvidia-container-toolkit (docker info lists no nvidia runtime)"
+M_DOCKER="  - a check of Docker's nvidia runtime (Docker isn't reachable)"
+NV_CPU="NVIDIA card found, but Docker can't give it to Jellyfin — CPU transcoding."
+NV_DOCTOR="Not usable yet, so setup.sh picks CPU transcoding. Missing:"
 
 # ------------------------------------------------------------ baseline
 case_baseline() {   # the default machine, unchanged
@@ -38,7 +48,7 @@ case_baseline() {   # the default machine, unchanged
   is DET_CPU "Intel(R) Core(TM) i5-8500T CPU @ 2.10GHz"; is DET_CORES 6
   is DET_MEM_GB 15; is DET_TZ America/Toronto
   is DET_UID "$RUN_UID"; is DET_GID "$RUN_GID"
-  is pick cpu
+  is pick cpu; is DET_GPU_VENDORS ""; is DET_GPU_OTHER ""
   doctor kv Distro "Ubuntu 24.04"
   doctor kv CPU "Intel(R) Core(TM) i5-8500T CPU @ 2.10GHz (6 cores)"
   doctor kv Timezone America/Toronto
@@ -46,7 +56,7 @@ case_baseline() {   # the default machine, unchanged
   doctor ok "64-bit x86 — every image in this repo has a build for it."
   doctor ok "Docker daemon is reachable."
   doctor ok "All default ports for the arr stack are free."
-  doctor kv GPU "none detected (or lspci not installed)"
+  doctor kv GPU "none detected"
   doctor note "No GPU detected — CPU transcoding only."
   doctor_lacks "Timezone looks unset"
   env_is PUID "$RUN_UID"; env_is PGID "$RUN_GID"; env_is TZ America/Toronto
@@ -54,11 +64,12 @@ case_baseline() {   # the default machine, unchanged
   env_is RENDER_GID 992
   env_absent INTEL_RENDER_PATH; env_absent AMD_RENDER_PATH
   setup ok "No usable GPU found — CPU transcoding."
+  setup_lacks "NVIDIA"
 }
 
 # ------------------------------------------------------------ GPU
 case_gpu_intel_i915() {
-  gpu "$L_INTEL_UHD630"; render renderD128 i915 "$P_INTEL"
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; render renderD128 i915 "$P_INTEL"
   is DET_GPU_VENDORS intel; is DET_INTEL_RENDER "$BP/pci-$P_INTEL-render"; is pick intel
   doctor kv "Render node" "/dev/dri/renderD128  (driver: i915)"
   doctor note "stable id: $BP/pci-$P_INTEL-render"
@@ -70,7 +81,7 @@ case_gpu_intel_i915() {
 }
 
 case_gpu_intel_xe() {   # Lunar Lake and newer bind to xe, not i915
-  gpu "$L_INTEL_ARC"; render renderD128 xe "$P_INTEL"
+  gpu "$L_INTEL_ARC" $I_ARC xe; render renderD128 xe "$P_INTEL"
   is DET_INTEL_RENDER "$BP/pci-$P_INTEL-render"; is pick intel
   doctor kv "Render node" "/dev/dri/renderD128  (driver: xe)"
   env_is COMPOSE_FILE compose.yaml:hw/gpu-intel.yaml
@@ -78,7 +89,7 @@ case_gpu_intel_xe() {   # Lunar Lake and newer bind to xe, not i915
 }
 
 case_gpu_amd() {
-  gpu "$L_AMD_6700XT"; render renderD128 amdgpu "$P_AMD"
+  gpu "$L_AMD_6700XT" $I_6700XT amdgpu; render renderD128 amdgpu "$P_AMD"
   is DET_GPU_VENDORS amd; is DET_AMD_RENDER "$BP/pci-$P_AMD-render"; is DET_INTEL_RENDER ""; is pick amd
   doctor warn "AMD VAAPI — this path is NOT maintainer-tested."
   doctor note "From the docs: VAAPI through amdgpu, the same interface as Intel."
@@ -89,34 +100,71 @@ case_gpu_amd() {
   setup note "device: $BP/pci-$P_AMD-render"
 }
 
-case_gpu_nvidia_driver() {   # proprietary driver; the container toolkit is not read at all
-  gpu "$L_NV_3060"; render renderD128 nvidia "$P_NV"
-  is DET_GPU_VENDORS nvidia; is pick nvidia
+case_gpu_nvidia_driver() {   # proprietary driver and the toolkit's nvidia runtime: ready
+  gpu "$L_NV_3060" $I_3060 nvidia; render renderD128 nvidia "$P_NV"; docker_is nvidia-runtime
+  is DET_GPU_VENDORS nvidia; is DET_NVIDIA_DRIVER nvidia; is DET_DOCKER_NVIDIA 1; is pick nvidia
   doctor warn "NVIDIA NVENC — this path is NOT maintainer-tested."
   doctor note "NVIDIA only. Good encoder (NVENC), but it needs the"
+  doctor ok "Both found: driver loaded, and Docker lists the nvidia runtime."
+  doctor_lacks "Missing:"
   env_is COMPOSE_FILE compose.yaml:hw/gpu-nvidia.yaml
   env_absent INTEL_RENDER_PATH; env_absent AMD_RENDER_PATH
   setup warn "NVIDIA NVENC — this path is NOT maintainer-tested."
+  setup note "The proprietary driver is loaded and Docker lists the nvidia"
+  setup_lacks "Falls back to CPU"; setup_lacks "Missing:"
 }
 
-case_gpu_nvidia_nouveau() {   # nouveau has no NVENC
-  gpu "$L_NV_3060"; render renderD128 nouveau "$P_NV"
-  current T-043 "NVIDIA is chosen from lspci alone; the driver is never checked"
-  is pick nvidia
-  env_is COMPOSE_FILE compose.yaml:hw/gpu-nvidia.yaml
-  setup note "Falls back to CPU transcoding if either is missing."
+case_gpu_nvidia_nouveau() {   # nouveau has no NVENC; the toolkit alone doesn't help (this host, minus Intel)
+  gpu "$L_NV_3060" $I_3060 nouveau; render renderD128 nouveau "$P_NV"; docker_is nvidia-runtime
+  is DET_NVIDIA_DRIVER nouveau; is DET_DOCKER_NVIDIA 1; is pick cpu
+  doctor warn "$NV_DOCTOR"; doctor note "$M_NOUVEAU"; doctor_lacks "$M_TOOLKIT"
+  env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  setup warn "$NV_CPU"; setup note "$M_NOUVEAU"; setup_lacks "$M_TOOLKIT"
+  setup_lacks "Falls back to CPU transcoding"; setup_lacks "No usable GPU found"
 }
 
 case_gpu_nvidia_no_driver() {   # card present, no driver: no render node at all
-  gpu "$L_NV_3060"
-  is DET_RENDER_NODES ""
-  current T-043 "NVIDIA is chosen from lspci alone; the driver is never checked"
-  is pick nvidia
+  gpu "$L_NV_3060" $I_3060
+  is DET_RENDER_NODES ""; is DET_NVIDIA_DRIVER ""; is DET_DOCKER_NVIDIA 0; is pick cpu
+  doctor warn "$NV_DOCTOR"; doctor note "$M_NODRV"; doctor note "$M_TOOLKIT"
+  env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  setup warn "$NV_CPU"; setup note "$M_NODRV"; setup note "$M_TOOLKIT"
+}
+
+case_gpu_nvidia_no_runtime() {   # proprietary driver, toolkit not installed
+  gpu "$L_NV_3060" $I_3060 nvidia; render renderD128 nvidia "$P_NV"
+  is DET_NVIDIA_DRIVER nvidia; is DET_DOCKER_NVIDIA 0; is pick cpu
+  doctor note "$M_TOOLKIT"; doctor_lacks "proprietary NVIDIA driver ("
+  env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  setup warn "$NV_CPU"; setup note "$M_TOOLKIT"; setup_lacks "proprietary NVIDIA driver ("
+}
+
+case_gpu_nvidia_docker_down() {   # driver loaded, but nothing to ask about the runtime
+  gpu "$L_NV_3060" $I_3060 nvidia; render renderD128 nvidia "$P_NV"; docker_is down nvidia-runtime
+  is DET_DOCKER_NVIDIA 0; is pick cpu
+  env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  setup note "$M_DOCKER"; setup_lacks "$M_TOOLKIT"
+}
+
+case_gpu_nvidia_override_unready() {   # forced anyway: the Physical failure path (Jellyfin stayed Created)
+  gpu "$L_NV_3060" $I_3060 nouveau; render renderD128 nouveau "$P_NV"; docker_is nvidia-runtime; override nvidia
   env_is COMPOSE_FILE compose.yaml:hw/gpu-nvidia.yaml
+  setup warn "overridden by GPU_PROFILE_OVERRIDE -> nvidia"
+  setup warn "Jellyfin will not start with this profile. Missing:"
+  setup note "$M_NOUVEAU"
+  setup note "stays Created, and the error names libnvidia-ml.so.1."
+}
+
+case_gpu_override_no_card() {   # nvidia forced on a machine without one
+  override nvidia
+  env_is COMPOSE_FILE compose.yaml:hw/gpu-nvidia.yaml
+  setup warn "Jellyfin will not start with this profile. Missing:"
+  setup note "  - an NVIDIA card (none found)"
+  setup_lacks "proprietary NVIDIA driver ("
 }
 
 case_gpu_intel_nvidia() {   # laptop: iGPU + discrete card; Intel wins on purpose
-  gpu "$L_INTEL_UHD630"; gpu "$L_NV_1050M"
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; gpu "$L_NV_1050M" $I_1050M nvidia
   render renderD128 i915 "$P_INTEL"; render renderD129 nvidia "$P_NV"
   is DET_GPU_VENDORS "intel nvidia"; is pick intel
   doctor warn "More than one render node. Do NOT pass /dev/dri/renderD128 directly."
@@ -124,59 +172,76 @@ case_gpu_intel_nvidia() {   # laptop: iGPU + discrete card; Intel wins on purpos
   env_is COMPOSE_FILE compose.yaml:hw/gpu-intel.yaml
   env_is INTEL_RENDER_PATH "$BP/pci-$P_INTEL-render"
   setup note "You also have an NVIDIA card. Intel is still the better"
+  setup note "$M_TOOLKIT"; setup_lacks "if you disagree."
 }
 
-case_gpu_nodes_swapped() {   # the numbers swap across reboots; by-path doesn't
-  gpu "$L_INTEL_UHD630"; gpu "$L_NV_1050M"
+case_gpu_intel_nvidia_ready() {   # both usable: the override is offered
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; gpu "$L_NV_1050M" $I_1050M nvidia
+  render renderD128 i915 "$P_INTEL"; render renderD129 nvidia "$P_NV"; docker_is nvidia-runtime
+  is pick intel
+  env_is COMPOSE_FILE compose.yaml:hw/gpu-intel.yaml
+  setup note "GPU_PROFILE_OVERRIDE=nvidia ./setup.sh if you disagree."; setup_lacks "Missing:"
+}
+
+case_gpu_nodes_swapped() {   # the numbers swap across reboots; by-path doesn't (this host)
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; gpu "$L_NV_1050M" $I_1050M nouveau; docker_is nvidia-runtime
   render renderD128 nouveau "$P_NV"; render renderD129 i915 "$P_INTEL"
   is DET_INTEL_RENDER "$BP/pci-$P_INTEL-render"; is pick intel
   doctor kv "Render node" "/dev/dri/renderD129  (driver: i915)"
   env_is INTEL_RENDER_PATH "$BP/pci-$P_INTEL-render"
   env_is COMPOSE_FILE compose.yaml:hw/gpu-intel.yaml
+  setup note "$M_NOUVEAU"; setup_lacks "if you disagree."
 }
 
-case_gpu_virtio() {   # a KVM guest with virtio-gpu: a render node, no vendor
-  gpu "00:01.0 VGA compatible controller: Red Hat, Inc. Virtio 1.0 GPU (rev 01)"
+case_gpu_virtio() {   # a KVM guest with virtio-gpu: a render node, no encoder
+  gpu "00:01.0 VGA compatible controller: Red Hat, Inc. Virtio 1.0 GPU (rev 01)" 1af4:1050 virtio-pci
   render renderD128 virtio-pci "0000:00:01.0"
-  is DET_GPU_VENDORS ""; is pick cpu
+  is DET_GPU_VENDORS ""; is DET_GPU_OTHER "virtio-gpu (virtual machine)"; is pick cpu
   doctor kv "Render node" "/dev/dri/renderD128  (driver: virtio-pci)"
-  doctor note "No GPU detected — CPU transcoding only."
+  doctor note "Only virtio-gpu (virtual machine): no video encoder."
+  doctor_lacks "No GPU detected"
   env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
   env_absent INTEL_RENDER_PATH; env_absent AMD_RENDER_PATH
+  setup ok "No usable GPU found — CPU transcoding."
+  setup note "virtio-gpu (virtual machine): no video encoder."
 }
 
 case_gpu_bochs() {   # QEMU's standard VGA: display only, no render node
-  gpu "00:02.0 VGA compatible controller: Device 1234:1111 (rev 02)"
+  gpu "00:02.0 VGA compatible controller: Device 1234:1111 (rev 02)" 1234:1111
   is DET_GPU_VENDORS ""; is DET_RENDER_NODES ""; is pick cpu
   doctor kv GPU "00:02.0 VGA compatible controller: Device 1234:1111 (rev 02)"
+  doctor note "Only QEMU standard VGA (virtual machine): no video encoder."
   env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  setup note "QEMU standard VGA (virtual machine): no video encoder."
 }
 
 case_gpu_aspeed() {   # server BMC graphics
-  gpu "03:00.0 VGA compatible controller: ASPEED Technology, Inc. ASPEED Graphics Family (rev 41)"
+  gpu "03:00.0 VGA compatible controller: ASPEED Technology, Inc. ASPEED Graphics Family (rev 41)" 1a03:2000 ast
   is DET_GPU_VENDORS ""; is pick cpu
-  doctor note "No GPU detected — CPU transcoding only."
+  doctor note "Only ASPEED (server management graphics): no video encoder."
+  doctor_lacks "No GPU detected"
   env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  setup note "ASPEED (server management graphics): no video encoder."
 }
 
-case_gpu_no_lspci() {   # Debian/Arch minimal: no pciutils
-  gpu "$L_NV_3060"; render renderD128 nvidia "$P_NV"; no_tool lspci
-  is DET_GPUS ""
-  doctor kv GPU "none detected (or lspci not installed)"
+case_gpu_no_lspci() {   # Debian/Arch minimal: no pciutils; the card comes from sysfs
+  gpu "$L_NV_3060" $I_3060 nvidia; render renderD128 nvidia "$P_NV"; docker_is nvidia-runtime; no_tool lspci
+  is DET_GPUS "01:00.0 NVIDIA [10de:2486]"; is DET_GPU_VENDORS nvidia
+  doctor kv GPU "01:00.0 NVIDIA [10de:2486]"
+  doctor note "lspci is not installed (package pciutils), so no model names;"
   doctor kv "Render node" "/dev/dri/renderD128  (driver: nvidia)"
-  current T-043 "without lspci an NVIDIA card is never chosen, even with its driver loaded"
-  is pick cpu
-  env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
+  is pick nvidia
+  env_is COMPOSE_FILE compose.yaml:hw/gpu-nvidia.yaml
 }
 
 case_gpu_no_lspci_intel() {   # Intel and AMD come from sysfs, so they survive it
-  gpu "$L_INTEL_UHD630"; render renderD128 i915 "$P_INTEL"; no_tool lspci
-  is pick intel
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; render renderD128 i915 "$P_INTEL"; no_tool lspci
+  is DET_GPU_VENDORS intel; is pick intel
   env_is INTEL_RENDER_PATH "$BP/pci-$P_INTEL-render"
 }
 
 case_gpu_no_by_path() {   # no stable id: the node is shown, never written to .env
-  gpu "$L_INTEL_UHD630"; render renderD128 i915
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; render renderD128 i915
   is DET_INTEL_RENDER ""; is pick cpu
   doctor note "stable id: (no by-path entry)"
   env_is COMPOSE_FILE compose.yaml:hw/cpu-only.yaml
@@ -184,19 +249,19 @@ case_gpu_no_by_path() {   # no stable id: the node is shown, never written to .e
 }
 
 case_gpu_no_render_group() {   # no render or video group: the node's own group
-  gpu "$L_INTEL_UHD630"; render renderD128 i915 "$P_INTEL"; group render; group video
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; render renderD128 i915 "$P_INTEL"; group render; group video
   is DET_RENDER_GID "$(stat -c %g "$R/dev/dri/renderD128")"
   env_is RENDER_GID "$(stat -c %g "$R/dev/dri/renderD128")"
   setup_lacks "Could not determine the render group id."
 }
 
 case_gpu_video_group_only() {   # older distros: video owns the nodes
-  gpu "$L_INTEL_UHD630"; render renderD128 i915 "$P_INTEL"; group render
+  gpu "$L_INTEL_UHD630" $I_UHD630 i915; render renderD128 i915 "$P_INTEL"; group render
   is DET_RENDER_GID 44; env_is RENDER_GID 44
 }
 
 case_gpu_no_group_no_node() {   # override to a GPU with nothing to read the gid from
-  group render; group video; gpu "$L_NV_3060"
+  group render; group video; gpu "$L_NV_3060" $I_3060; override nvidia
   is DET_RENDER_GID ""
   env_absent RENDER_GID
   setup warn "Could not determine the render group id."
@@ -494,7 +559,7 @@ case_tools_no_nproc() {
 # From a real machine (the workspace capture tool), checked against what
 # doctor.sh and setup.sh printed on that machine itself, the same day.
 case_capture_maintainer_laptop() {
-  from 'captured: the maintainer server (laptop, i5-9300H, UHD 630 + GTX 1050 on nouveau), 2026-11-05'
+  from 'captured: the maintainer server (laptop, i5-9300H, UHD 630 + GTX 1050 on nouveau), 2026-11-05; GPU ids and nvidia runtime 2026-11-06'
   os_release <<'EOS'
 NAME="Ubuntu"
 VERSION_ID="26.04"
@@ -502,8 +567,9 @@ EOS
   arch 'x86_64'; kernel '7.0.0-34-generic'; cores '8'
   cpu_model 'Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz' 8
   mem_kb 15684192 4194300
-  gpu '00:02.0 VGA compatible controller: Intel Corporation CoffeeLake-H GT2 [UHD Graphics 630]'
-  gpu '01:00.0 VGA compatible controller: NVIDIA Corporation GP107M [GeForce GTX 1050 3 GB Max-Q] (rev a1)'
+  gpu '00:02.0 VGA compatible controller: Intel Corporation CoffeeLake-H GT2 [UHD Graphics 630]' 8086:3e9b 'i915'
+  gpu '01:00.0 VGA compatible controller: NVIDIA Corporation GP107M [GeForce GTX 1050 3 GB Max-Q] (rev a1)' 10de:1c91 'nouveau'
+  docker_is nvidia-runtime
   render renderD128 'nouveau' '0000:01:00.0'
   render renderD129 'i915' '0000:00:02.0'
   group render 991
@@ -519,6 +585,8 @@ EOS
   env_is COMPOSE_FILE compose.yaml:hw/gpu-intel.yaml
   env_is RENDER_GID 991
   env_is INTEL_RENDER_PATH /dev/dri/by-path/pci-0000:00:02.0-render
+  is DET_NVIDIA_DRIVER nouveau; is DET_DOCKER_NVIDIA 1
+  setup note "$M_NOUVEAU"; setup_lacks "if you disagree."
   env_absent AMD_RENDER_PATH
   setup ok "Intel Quick Sync (tested path)."
   setup note "You also have an NVIDIA card. Intel is still the better"

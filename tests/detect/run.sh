@@ -117,7 +117,24 @@ mem_kb()    { # MemTotal [SwapTotal], in kB as the kernel prints them
 tz_ctl()       { _frozen tz_ctl; echo "$1" > "$T/tz"; rm -f "$T/tz.fail"; }
 tz_ctl_fails() { _frozen tz_ctl_fails; rm -f "$T/tz"; : > "$T/tz.fail"; }   # installed, no systemd
 tz_file()      { _frozen tz_file; mkdir -p "$R/etc"; echo "$1" > "$R/etc/timezone"; }
-gpu()       { _frozen gpu; echo "$1" >> "$T/lspci"; }   # one lspci line
+pci()       { # slot class vendor device [driver]: a PCI device in sysfs
+  _frozen pci; local d="$R/sys/bus/pci/devices/0000:$1"
+  mkdir -p "$d"; echo "$2" > "$d/class"; echo "0x${3}" > "$d/vendor"; echo "0x${4}" > "$d/device"
+  if [ -n "${5:-}" ]; then mkdir -p "$R/sys/bus/pci/drivers/$5"; ln -s "../../drivers/$5" "$d/driver"; fi
+}
+gpu()       { # "lspci line" vendor:device [driver]: the line, and the card in sysfs
+  _frozen gpu; [ -n "${2:-}" ] || { _fail "gpu: no vendor:device for [$1]"; return 0; }
+  echo "$1" >> "$T/lspci"
+  local class
+  case "$1" in
+    *"VGA compatible controller"*) class=0x030000 ;;
+    *"3D controller"*)             class=0x030200 ;;
+    *"Display controller"*)        class=0x038000 ;;
+    *) _fail "gpu: no display class in [$1]"; return 0 ;;
+  esac
+  pci "${1%% *}" "$class" "${2%%:*}" "${2#*:}" "${3:-}"
+}
+override()  { _frozen override; echo "$1" > "$T/override"; }   # GPU_PROFILE_OVERRIDE for setup.sh
 render()    { # renderDNNN driver [pci-id]: a node, its driver in sysfs, its by-path link
   _frozen render; local node="$1" drv="$2" pci="${3:-}"
   mkdir -p "$R/dev/dri" "$R/sys/bus/pci/drivers/$drv" "$R/sys/class/drm/$node/device"
@@ -130,13 +147,14 @@ render()    { # renderDNNN driver [pci-id]: a node, its driver in sysfs, its by-
 group()     { _frozen group; sed -i "/^$1:/d" "$T/groups"; [ -n "${2:-}" ] && echo "$1:x:$2:" >> "$T/groups"; return 0; }
 user_groups(){ _frozen user_groups; echo "$1" > "$T/user-groups"; }
 user_ids()  { _frozen user_ids; echo "$1" > "$T/uid"; echo "$2" > "$T/gid"; }   # id -u, id -g
-docker_is() { # absent | down | up ; plus: rootless, no-compose
+docker_is() { # absent | down | up ; plus: rootless, nvidia-runtime, no-compose
   _frozen docker_is; local w
   for w in "$@"; do case "$w" in
     absent) rm -f "$FX/bin/docker" ;;
     down) rm -f "$T/docker.up" ;;
     up) : > "$T/docker.up" ;;
     rootless) : > "$T/docker.rootless" ;;
+    nvidia-runtime) : > "$T/docker.nvidia" ;;
     no-compose) rm -f "$T/compose" ;;
   esac; done
 }
@@ -181,6 +199,9 @@ EOF
   user_groups "you adm docker"
   : > "$T/docker.up"; echo "2.40.3" > "$T/compose"
   disk 200
+  # What lspci's stand-in lists besides GPUs. Intel's vendor id on a host
+  # bridge: only display devices (class 0x03xxxx) may count as a GPU.
+  pci 00:00.0 0x060000 8086 3ec4; pci 00:14.0 0x0c0330 8086 a36d; pci 02:00.0 0x010802 144d a808 nvme
   _stub uname <<'EOF'
 case "${1:-}" in -r) cat "$T/kernel" ;; -m) cat "$T/arch" ;; *) odd "$@" ;; esac
 EOF
@@ -229,7 +250,10 @@ EOF
 case "${1:-}" in
   --version) echo "Docker version 29.0.1, build eedd969" ;;
   info) [ -f "$T/docker.up" ] || { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
-        echo "Server Version: 29.0.1"; echo " Security Options:"; echo "  seccomp"
+        echo "Server Version: 29.0.1"
+        if [ -f "$T/docker.nvidia" ]; then echo " Runtimes: io.containerd.runc.v2 nvidia runc"
+        else echo " Runtimes: io.containerd.runc.v2 runc"; fi
+        echo " Default Runtime: runc"; echo " Security Options:"; echo "  seccomp"
         [ -f "$T/docker.rootless" ] && echo "  rootless"; exit 0 ;;
   compose) [ "${2:-}" = version ] && [ -f "$T/compose" ] && { cat "$T/compose"; exit 0; }
            [ "${2:-}" = version ] || odd "$@"
@@ -283,8 +307,8 @@ _env() {
 PROBE='. lib/detect.sh
 detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker; detect_tailscale
 for v in DET_DISTRO DET_DISTRO_VER DET_KERNEL DET_ARCH DET_TZ DET_UID DET_GID DET_CPU DET_CORES \
-  DET_MEM_GB DET_SWAP_GB DET_GPU_VENDORS DET_RENDER_GID DET_INTEL_RENDER DET_AMD_RENDER \
-  DET_DOCKER_VER DET_COMPOSE_VER DET_DOCKER_OK DET_DOCKER_ROOTLESS DET_IN_DOCKER_GROUP \
+  DET_MEM_GB DET_SWAP_GB DET_GPU_VENDORS DET_GPU_OTHER DET_NVIDIA_DRIVER DET_RENDER_GID DET_INTEL_RENDER DET_AMD_RENDER \
+  DET_DOCKER_VER DET_DOCKER_NVIDIA DET_COMPOSE_VER DET_DOCKER_OK DET_DOCKER_ROOTLESS DET_IN_DOCKER_GROUP \
   DET_TS_INSTALLED DET_TS_UP DET_TS_IP DET_TS_NAME; do printf "%s=%s\n" "$v" "${!v}"; done
 printf "DET_GPUS=%s\n" "$(printf "%s" "$DET_GPUS" | paste -sd ";")"
 printf "DET_RENDER_NODES=%s\n" "$(printf "%s" "$DET_RENDER_NODES" | paste -sd ";")"
@@ -296,12 +320,14 @@ printf "fs_of=%s\nfstype_of=%s\nfree_gb=%s\n" "$(fs_of .)" "$(fstype_of .)" "$(f
 
 _run() { # probe | doctor | setup: once per case, on first use
   case " $RAN " in *" $1 "*) return 0 ;; esac
-  local rc
+  local rc OVR=""
+  [ -f "$T/override" ] && OVR="$(cat "$T/override")"
   case "$1" in
     probe)  (cd "$REPO" && _env bash -c "$PROBE") > "$FX/probe" 2>&1; rc=$? ;;
     doctor) (cd "$REPO" && _env bash doctor.sh) < /dev/null > "$FX/doctor" 2>&1; rc=$? ;;
     setup)  (cd "$REPO" && _env STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
                APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos \
+               ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
                bash setup.sh --dry-run --yes) < /dev/null > "$FX/setup" 2>&1; rc=$? ;;
   esac
   RAN="$RAN $1"

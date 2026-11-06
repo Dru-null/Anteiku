@@ -137,22 +137,50 @@ detect_mem() {
 
 # --- GPU --------------------------------------------------------------
 # Sets DET_GPUS (human list), DET_GPU_VENDORS (space-separated: intel amd nvidia),
-# and DET_RENDER_NODES ("node|pcipath|driver" per line).
+# DET_GPU_OTHER (display adapters with no video encoder: VMs, server BMCs),
+# DET_NVIDIA_DRIVER (the kernel driver bound to the NVIDIA card: nvidia,
+# nouveau, or empty for none) and DET_RENDER_NODES ("node|pcipath|driver"
+# per line).
+#
+# Vendors come from sysfs (PCI class 0x03xxxx = display), which every Linux
+# has. lspci is optional (minimal Debian and Arch lack it) and only gives
+# the model names.
 detect_gpu() {
   local R="${ANTEIKU_DETECT_ROOT:-}"
-  DET_GPUS=""; DET_GPU_VENDORS=""; DET_RENDER_NODES=""
+  DET_GPUS=""; DET_GPU_VENDORS=""; DET_GPU_OTHER=""; DET_NVIDIA_DRIVER=""; DET_RENDER_NODES=""
+
+  local d class vendor device drv slot name sysnames=""
+  for d in "$R"/sys/bus/pci/devices/*; do
+    [ -r "$d/class" ] || continue
+    class="$(cat "$d/class" 2>/dev/null)"; [ "${class#0x03}" = "$class" ] && continue
+    vendor="$(cat "$d/vendor" 2>/dev/null)"; device="$(cat "$d/device" 2>/dev/null)"
+    drv=""; [ -e "$d/driver" ] && drv="$(basename "$(readlink -f "$d/driver")")"
+    slot="${d##*/}"; slot="${slot#0000:}"
+    case "$vendor" in
+      0x8086) name="Intel";  DET_GPU_VENDORS="$DET_GPU_VENDORS intel" ;;
+      0x1002) name="AMD";    DET_GPU_VENDORS="$DET_GPU_VENDORS amd" ;;
+      0x10de) name="NVIDIA"; DET_GPU_VENDORS="$DET_GPU_VENDORS nvidia"
+              [ -z "$DET_NVIDIA_DRIVER" ] && DET_NVIDIA_DRIVER="${drv:-none}" ;;
+      0x1af4) name="virtio-gpu (virtual machine)" ;;
+      0x1234) name="QEMU standard VGA (virtual machine)" ;;
+      0x1a03) name="ASPEED (server management graphics)" ;;
+      *)      name="display adapter $vendor" ;;
+    esac
+    case "$vendor" in
+      0x8086|0x1002|0x10de) ;;
+      *) DET_GPU_OTHER="${DET_GPU_OTHER:+$DET_GPU_OTHER, }$name" ;;
+    esac
+    sysnames="${sysnames}${slot} ${name} [${vendor#0x}:${device#0x}]"$'\n'
+  done
+  [ "$DET_NVIDIA_DRIVER" = none ] && DET_NVIDIA_DRIVER=""
 
   if have lspci; then
     while IFS= read -r line; do
-      [ -z "$line" ] && continue
-      DET_GPUS="${DET_GPUS}${line}"$'\n'
-      case "$line" in
-        *Intel*)            DET_GPU_VENDORS="$DET_GPU_VENDORS intel" ;;
-        *NVIDIA*|*nVidia*)  DET_GPU_VENDORS="$DET_GPU_VENDORS nvidia" ;;
-        *AMD*|*ATI*|*Radeon*) DET_GPU_VENDORS="$DET_GPU_VENDORS amd" ;;
-      esac
+      [ -n "$line" ] && DET_GPUS="${DET_GPUS}${line}"$'\n'
     done <<< "$(lspci 2>/dev/null | grep -iE 'vga|3d controller|display controller' || true)"
   fi
+  # No lspci: name them from sysfs instead, ids and all.
+  [ -z "$DET_GPUS" ] && DET_GPUS="$sysnames"
 
   # Render nodes, with the STABLE by-path id. Bare /dev/dri/renderD128 is
   # NOT stable across reboots on a machine with two GPUs — the numbers can
@@ -215,12 +243,35 @@ detect_render() {
   done <<< "$DET_RENDER_NODES"
 }
 
+# What an NVIDIA card still needs before Jellyfin can use it: one line per
+# missing piece, nothing when it is ready. Needs detect_gpu and
+# detect_docker. A container that asks Docker for an NVIDIA GPU it can't
+# provide does not start at all; it never falls back to the CPU.
+nvidia_missing() {
+  case " ${DET_GPU_VENDORS:-} " in
+    *" nvidia "*) ;;
+    *) echo "an NVIDIA card (none found)"; return 0 ;;
+  esac
+  case "${DET_NVIDIA_DRIVER:-}" in
+    nvidia) ;;
+    nouveau) echo "the proprietary NVIDIA driver (the card is on nouveau, which has no NVENC)" ;;
+    "")      echo "the proprietary NVIDIA driver (no driver is loaded for the card)" ;;
+    *)       echo "the proprietary NVIDIA driver (the card is on $DET_NVIDIA_DRIVER)" ;;
+  esac
+  if [ "${DET_DOCKER_OK:-0}" -ne 1 ]; then
+    echo "a check of Docker's nvidia runtime (Docker isn't reachable)"
+  elif [ "${DET_DOCKER_NVIDIA:-0}" -ne 1 ]; then
+    echo "nvidia-container-toolkit (docker info lists no nvidia runtime)"
+  fi
+}
+
 # Which GPU profile should Jellyfin use? Echoes: intel|nvidia|amd|cpu
 # Intel wins over a discrete NVIDIA card on purpose - see doctor.sh.
+# NVIDIA only when nvidia_missing is empty: otherwise Jellyfin won't start.
 pick_gpu_profile() {
   if [ -n "${DET_INTEL_RENDER:-}" ]; then echo intel; return; fi
   case "$DET_GPU_VENDORS" in
-    *nvidia*) echo nvidia; return ;;
+    *nvidia*) [ -z "$(nvidia_missing)" ] && { echo nvidia; return; } ;;
   esac
   if [ -n "${DET_AMD_RENDER:-}" ]; then echo amd; return; fi
   echo cpu
@@ -229,12 +280,16 @@ pick_gpu_profile() {
 # --- docker -----------------------------------------------------------
 detect_docker() {
   DET_DOCKER_VER=""; DET_COMPOSE_VER=""; DET_DOCKER_OK=0
-  DET_DOCKER_ROOTLESS=0; DET_IN_DOCKER_GROUP=0
+  DET_DOCKER_ROOTLESS=0; DET_IN_DOCKER_GROUP=0; DET_DOCKER_NVIDIA=0
   if have docker; then
     DET_DOCKER_VER="$(docker --version 2>/dev/null | sed 's/^Docker version //; s/,.*//')"
-    if docker info >/dev/null 2>&1; then
+    local info
+    if info="$(docker info 2>/dev/null)"; then
       DET_DOCKER_OK=1
-      docker info 2>/dev/null | grep -qi 'rootless' && DET_DOCKER_ROOTLESS=1
+      grep -qi 'rootless' <<< "$info" && DET_DOCKER_ROOTLESS=1
+      # nvidia-container-toolkit registers this runtime (nvidia-ctk runtime
+      # configure); without it Docker can't give a container the card.
+      grep -qE '^ *Runtimes:(.* )?nvidia( |$)' <<< "$info" && DET_DOCKER_NVIDIA=1
     fi
     DET_COMPOSE_VER="$(docker compose version --short 2>/dev/null || true)"
   fi
