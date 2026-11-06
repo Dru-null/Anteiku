@@ -39,7 +39,7 @@ main() {
     --unschedule) MODE=unschedule ;;
     --yes|-y)     ASSUME_YES=1 ;;
     --no-backup)  NO_BACKUP=1 ;;
-    -h|--help) sed -n '2,23p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+    -h|--help) sed -n '2,/^# ===/s/^# \{0,2\}//p' "${0##*/}"; exit 0 ;;
     *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
   esac; done
 

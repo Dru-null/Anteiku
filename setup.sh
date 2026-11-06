@@ -30,7 +30,7 @@ for a in "$@"; do
     --env-file=*) ENV_FILE="${a#*=}" ;;
     --reconfigure) RECONFIGURE=1 ;;
     --plain)       PLAIN=1 ;;
-    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,2\}//'; exit 0 ;;
+    -h|--help) sed -n '2,/^# ===/s/^# \{0,2\}//p' "${0##*/}"; exit 0 ;;
     *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
   esac
 done

@@ -49,6 +49,9 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   mount counts.
 - On a full disk `setup.sh` stops and leaves `.env` as it was. A re-run
   used to replace it with an empty file, passwords included.
+- `--help` prints the script's header and nothing else, from any folder.
+  `setup.sh --help` used to end in three lines of code, and every
+  script's help printed only an error when run from another folder.
 
 ---
 
