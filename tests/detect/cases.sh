@@ -66,6 +66,7 @@ case_baseline() {   # the default machine, unchanged
   env_absent INTEL_RENDER_PATH; env_absent AMD_RENDER_PATH
   setup ok "No usable GPU found — CPU transcoding."
   setup_lacks "NVIDIA"
+  setup_lacks "Compose v2 plugin missing"
 }
 
 # ------------------------------------------------------------ GPU
@@ -503,6 +504,7 @@ case_docker_absent() {
   docker_is absent
   is DET_DOCKER_VER ""; is DET_DOCKER_OK 0
   doctor err "Docker is not installed. Nothing here can run without it."
+  setup_lacks "Compose v2 plugin missing"   # no docker at all: not a plugin problem (T-073)
 }
 
 case_docker_down_not_in_group() {
@@ -522,6 +524,20 @@ case_docker_no_compose() {   # distro docker.io without the compose plugin
   docker_is no-compose
   is DET_COMPOSE_VER ""
   doctor err "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+  doctor note "Install the plugin: https://docs.docker.com/compose/install/"
+  # setup.sh still writes the config (T-073): it doesn't need compose, and
+  # says so before the steps that do.
+  setup warn "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+  setup note "Install the plugin: https://docs.docker.com/compose/install/"
+  setup note "Until it is installed, every 'docker compose' command fails."
+  env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
+}
+
+case_docker_down_no_compose() {   # the plugin check needs no daemon
+  docker_is down no-compose
+  is DET_COMPOSE_VER ""; is DET_DOCKER_OK 0
+  doctor err "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+  setup warn "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
 }
 
 case_docker_rootless() {

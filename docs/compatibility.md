@@ -105,7 +105,7 @@ answering on its host port, qBittorrent's login included.
 |---|---|---|---|
 | Docker Engine, rootful, Compose v2 plugin | Physical | `2026.10.1` | |
 | Not installed; daemon down; user not in `docker` group | Mocked | `docker_absent`, `docker_down_not_in_group`, `docker_down_in_group` | |
-| Distro `docker.io` without the Compose plugin | Virtualized (Debian 12), **known problem**; Mocked | 2026-11-06, after `2026.10.1`; `docker_no_compose` | `doctor.sh` reports the missing plugin as a blocker. `setup.sh` does not check: it writes the config and says to run `docker compose up -d`, which Docker 20.10 rejects with "unknown shorthand flag: 'd' in -d", without naming Compose. Nothing starts |
+| Distro `docker.io` without the Compose plugin | Virtualized (Debian 12); Mocked | 2026-11-06, after `2026.10.1`; `docker_no_compose`, `docker_down_no_compose` | `doctor.sh` reports the missing plugin as a blocker. `setup.sh` warns in the same words before its `docker compose` steps, and still writes the config. Docker 20.10.24 from Debian, then the plugin installed by hand as Docker's Compose page describes (5.6.0): the default services started from that config without re-running `setup.sh` |
 | Rootless | Mocked | `docker_rootless` | Detection only. Deploy Untested |
 
 ## Other detection
@@ -128,7 +128,6 @@ answering on its host port, qBittorrent's login included.
 | Script says | This page |
 |---|---|
 | `doctor.sh`, ARM64: "a few are x86-only" | All pinned images publish `linux/arm64` |
-| `setup.sh` without the Compose plugin: no warning, "Start it: docker compose up -d" | That command fails there; `doctor.sh` names the plugin |
 
 Both scripts label the NVIDIA and AMD paths "NOT maintainer-tested";
 `doctor.sh` labels rootless Docker too. Neither labels ARM64.

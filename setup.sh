@@ -77,6 +77,20 @@ prev_port() { local e; for e in ${PREV_PORTS:-}; do [ "${e%%=*}" = "$1" ] && { e
 
 detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker
 
+# Without the Compose plugin the config is still right: nothing in it
+# depends on compose, and the plugin can come after. But every step that
+# follows is a 'docker compose' command, and docker's own error never says
+# "compose" (docker.io 20.10: "unknown shorthand flag: 'd' in -d"). So:
+# write it, and say so right before those steps (T-073).
+say_compose_missing() {
+  compose_missing || return 0
+  warn "$MSG_COMPOSE_MISSING"
+  note "$MSG_COMPOSE_INSTALL"
+  note "Until it is installed, every 'docker compose' command fails."
+  note "This configuration doesn't depend on it: no need to re-run after."
+  echo
+}
+
 # ============================================================
 #  Service catalogue.  key|stack|default|hostport|internalport|description
 #  hostport is only a PREFERENCE — setup.sh moves it if it is taken.
@@ -1119,6 +1133,7 @@ fi
 
 echo
 if [ "$DRY_RUN" -eq 1 ]; then
+  say_compose_missing
   printf '%s  DRY RUN — %s was not written.%s\n' "$C_WARN" "$ENV_FILE" "$C_RST"
   printf '  Selected: %s\n' "${CHOSEN[*]}"
   printf '  %sports.md was not written either.%s\n' "$C_WARN" "$C_RST"
@@ -1287,6 +1302,7 @@ write_ports_md() {
 write_ports_md
 
 h1 "Next"
+say_compose_missing
 step() { printf '  %s%s%s  %-20s %s%s%s%s\n' "$C_CRIM$C_B" "$1" "$C_RST" "$2" "$C_B$C_INF" "$3" "$C_RST" "${4:+  $C_GREY$4$C_RST}"; }
 step 1 "Your ports"       "cat ports.md"          "bookmark this"
 step 2 "Review config"    "cat $ENV_FILE"
