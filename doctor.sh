@@ -101,8 +101,8 @@ else
     kv "Compose" "$DET_COMPOSE_VER (v2 plugin)"
     ok "Compose v2 present — 'docker compose', the syntax this repo uses."
   else
-    err "Compose v2 plugin missing. The old 'docker-compose' script will not work here."
-    note "Install the plugin: https://docs.docker.com/compose/install/"
+    err "$MSG_COMPOSE_MISSING"
+    note "$MSG_COMPOSE_INSTALL"
   fi
   if [ "$DET_DOCKER_OK" -eq 1 ]; then
     ok "Docker daemon is reachable."

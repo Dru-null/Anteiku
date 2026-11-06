@@ -322,6 +322,13 @@ detect_docker() {
   id -nG 2>/dev/null | tr ' ' '\n' | grep -qx docker && DET_IN_DOCKER_GROUP=1
 }
 
+# Docker without the Compose v2 plugin (a distro's docker.io): doctor's
+# blocker and setup.sh's warning say it in the same words (T-073).
+MSG_COMPOSE_MISSING="Compose v2 plugin missing. The old 'docker-compose' script will not work here."
+MSG_COMPOSE_INSTALL="Install the plugin: https://docs.docker.com/compose/install/"
+# compose_missing -> 0 if Docker is installed and its compose plugin isn't.
+compose_missing() { [ -n "$DET_DOCKER_VER" ] && [ -z "$DET_COMPOSE_VER" ]; }
+
 # --- remote access ----------------------------------------------------
 detect_tailscale() {
   DET_TS_INSTALLED=0; DET_TS_UP=0; DET_TS_IP=""; DET_TS_NAME=""
