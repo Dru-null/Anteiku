@@ -80,12 +80,14 @@ detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker
 # ============================================================
 #  Service catalogue.  key|stack|default|hostport|internalport|description
 #  hostport is only a PREFERENCE — setup.sh moves it if it is taken.
-#  internalport is fixed by the image and is what other containers use.
+#  internalport is fixed by the image and is what other containers use;
+#  "=" means the host port, whatever it ends up as (qBittorrent: it
+#  refuses a browser whose address names another port, stacks/arr.yaml).
 #  Add a row here when a stack gains a service.
 # ============================================================
 CATALOGUE="
 prowlarr|arr|on|9696|9696|Indexer manager: the hub the *arrs ask
-qbittorrent|arr|on|8181|8080|Download client
+qbittorrent|arr|on|8181|=|Download client
 sonarr|arr|on|8989|8989|TV library management
 radarr|arr|on|7878|7878|Movie library management
 lidarr|arr|off|8686|8686|Music library management
@@ -698,6 +700,14 @@ for ((i=0;i<N;i++)); do
   else
     ok "$k: $p"
   fi
+  # Listens on its host port inside Docker too: a move changes the
+  # address other containers use, and they keep the old one.
+  pp="$(prev_port "$VAR")"
+  if [ "${CAT_INTERNAL[$i]}" = "=" ] && [ -n "$pp" ] && [ "$pp" != "$p" ]; then
+    warn "$k: other containers now reach it at $k:$p, not $k:$pp."
+    note "Change it wherever you entered it: for qBittorrent, the download"
+    note "client in Sonarr and Radarr (Settings > Download Clients)."
+  fi
 done
 # Secondary ports, same +1 walk and same claim tracking.
 declare -A EXTRA_FINAL
@@ -1206,6 +1216,7 @@ write_ports_md() {
         continue
       fi
       hp="${PORT_FINAL[$k]}"
+      [ "$ip" = "=" ] && ip="$hp"
       if [ -n "${PORT_MOVED[$k]:-}" ]; then
         moved="yes — default ${PORT_MOVED[$k]} was taken"
       else
@@ -1236,13 +1247,20 @@ write_ports_md() {
     echo "host port, reachable from your LAN."
     echo
     echo "**From one container to another** — the \"Inside Docker\" column."
-    echo "When you tell Sonarr where qBittorrent is, use \`qbittorrent:8080\`,"
-    echo "*not* your LAN IP and *not* the host port. Containers on the same"
-    echo "compose network resolve each other by service name, and that keeps"
-    echo "working when your IP changes or a host port moves."
+    echo "When you tell Prowlarr where Sonarr is, use \`sonarr:8989\`,"
+    echo "*not* your LAN IP. Containers on the same compose network resolve"
+    echo "each other by service name, and that keeps working when your IP"
+    echo "changes."
     echo
-    echo "Note the two can differ: qBittorrent listens on 8080 inside its"
-    echo "container no matter which host port you reach it on."
+    echo "The two ports can differ: Vaultwarden is \`vaultwarden:80\` inside"
+    echo "Docker whatever host port you open it on."
+    if _sel_has qbittorrent; then
+      echo
+      echo "qBittorrent is the exception: it listens on its host port inside"
+      echo "Docker too (\`qbittorrent:${PORT_FINAL[qbittorrent]}\`), because it refuses a browser"
+      echo "whose address names a different port. If its host port changes,"
+      echo "change the download client in Sonarr and Radarr to match."
+    fi
     if [ "${PORT_SHIFTS:-0}" -gt 0 ]; then
       echo
       echo "## Why some of these moved"
@@ -1415,6 +1433,6 @@ fi
 
 printf '  %sConnect services by container NAME, not by IP.%s When one app\n' "$C_B$C_CRIM" "$C_RST"
 printf '  asks where another lives, use the "Inside Docker" column of\n'
-printf '  ports.md (e.g. qbittorrent:8080) — never your LAN IP and never\n'
-printf '  the host port. See ports.md for why.\n'
+printf '  ports.md (e.g. sonarr:8989) — never your LAN IP. See ports.md\n'
+printf '  for why.\n'
 echo

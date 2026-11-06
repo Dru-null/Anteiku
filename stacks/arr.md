@@ -76,14 +76,14 @@ you have decided to use. None are provided.
 **3. Sonarr / Radarr** —
 
 - Media Management → Root Folder → `/data/series` (Sonarr), `/data/movies` (Radarr)
-- Settings → Download Clients → add qBittorrent, host `qbittorrent`, port `8080`
+- Settings → Download Clients → add qBittorrent, host `qbittorrent`, port
+  `8181` (the default; use the "Inside Docker" port from `ports.md`)
 
-> Use the **container name and internal port**, not the host IP and published
-> port. Containers talk to each other on the compose network, so
-> `qbittorrent:8080` works; a LAN IP plus host port is a detour that breaks
-> the moment your IP changes or a port moves. The internal port is often not
-> the one you browse to — qBittorrent is `8080` inside whatever host port you
-> use. `ports.md` lists both, side by side.
+> Use the **container name**, not the host IP. Containers talk to each other
+> on the compose network, so `qbittorrent:8181` works; a LAN IP is a detour
+> that breaks the moment your IP changes. qBittorrent listens on the same
+> port inside Docker as the one you browse to (see Traps), so if `setup.sh`
+> moved it, the internal port moved too. `ports.md` lists both.
 
 **4. Back to Prowlarr** — Settings → Apps → add Sonarr and Radarr
 (`http://sonarr:8989`, `http://radarr:7878`) with each app's API key from
@@ -101,7 +101,7 @@ docker compose ps                  # all Up
 docker compose logs -f sonarr      # follow one service
 
 # containers can reach each other by name:
-docker compose exec sonarr curl -sI http://qbittorrent:8080
+docker compose exec sonarr curl -sI http://qbittorrent:8181   # your qBittorrent port
 
 # hardlinks working? link count 2 means yes, 1 means it copied:
 find ${MEDIA_ROOT}/series -type f -links +1 | head
@@ -111,6 +111,16 @@ That last one is worth running early. Catching a broken path contract on
 file three is much better than on file three thousand.
 
 ## Traps
+
+**qBittorrent answers "Unauthorized" (401) to a browser** when the port in
+the address isn't the one it listens on. It checks the request's `Host`
+header against its own port, so with Docker publishing host 8181 to 8080
+inside, every page is refused and its log says `Invalid Host header, port
+mismatch`. That is why this stack runs it on the same port inside and out
+(`WEBUI_PORTS` in `arr.yaml`). The cost: if its host port changes, the
+address other containers use changes with it, and Sonarr and Radarr keep
+the old one until you edit their download client. `setup.sh` warns when
+that happens.
 
 **Check file type, not extension.** Anything that arrives from the internet
 can be something other than what it claims. A padded `.exe` renamed to look

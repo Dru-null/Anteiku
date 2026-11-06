@@ -34,7 +34,8 @@ notifications.
 One virtual machine has run too: a clean Ubuntu 26.04 cloud image
 (KVM, 2 vCPU, 3 GiB, Docker Engine from Docker's apt repository) ran
 `doctor.sh`, `setup.sh` and the default services on `main`, after
-`2026.10.1`.
+`2026.10.1`. It ran them again with the qBittorrent fix below: every
+web UI answered on its host port, qBittorrent's login included.
 
 ---
 
@@ -42,7 +43,7 @@ One virtual machine has run too: a clean Ubuntu 26.04 cloud image
 
 | Distro | Level | Run / case | Notes |
 |---|---|---|---|
-| Ubuntu 26.04 | Physical, **known problem** | `2026.10.1`; `os_ubuntu_2604` | Every service. qBittorrent's web UI answers 401 "Unauthorized" on its host port (`8181`): qBittorrent rejects a Host header whose port is not its own `8080`. Sonarr and Radarr reach it inside Docker and work. Found in the clean VM above. `doctor.sh` is not part of the release check; it last ran there on `main`, after `2026.10.1` |
+| Ubuntu 26.04 | Physical | `2026.10.1`; `os_ubuntu_2604` | Every service. In `2026.10.1` qBittorrent's web UI answers 401 "Unauthorized" on its host port (`8181`): it rejects a Host header whose port is not the one it listens on (`8080` inside). Fixed after `2026.10.1`: it listens on `8181` inside too. The clean VM above opens it and logs in on its host port, and the release check now checks that. `doctor.sh` is not part of the release check; it last ran there on `main`, after `2026.10.1` |
 | Ubuntu 24.04 | Mocked | `baseline` | Name and version read correctly. CI runs `setup.sh` and `compose config` on an Ubuntu 24.04 runner; no service is deployed |
 | Ubuntu 22.04 | Mocked | `os_ubuntu_2204` | Name and version only |
 | Debian 12 | Mocked | `os_debian_12` | Name and version only |
