@@ -5,7 +5,7 @@
 #  One function per case, named case_<group>_<what>. Fixture lines
 #  first (they change the default machine in run.sh), then checks:
 #
-#    is DET_MEM_GB 3            what lib/detect.sh set (also: pick,
+#    is DET_MEM_MIB 3793        what lib/detect.sh set (also: pick,
 #                               port.<n>, fs_of, fstype_of, free_gb)
 #    env_is COMPOSE_FILE ...    the .env that setup.sh --dry-run shows
 #    env_absent AMD_RENDER_PATH
@@ -46,11 +46,11 @@ NV_DOCTOR="Not usable yet, so setup.sh picks CPU transcoding. Missing:"
 case_baseline() {   # the default machine, unchanged
   is DET_DISTRO Ubuntu; is DET_DISTRO_VER 24.04; is DET_KERNEL 6.8.0-87-generic; is DET_ARCH x86_64
   is DET_CPU "Intel(R) Core(TM) i5-8500T CPU @ 2.10GHz"; is DET_CORES 6
-  is DET_MEM_GB 15; is DET_TZ America/Toronto
+  is DET_MEM_MIB 15866; is DET_MEM_GIB 15.5; is DET_TZ America/Toronto
   is DET_UID "$RUN_UID"; is DET_GID "$RUN_GID"
   is pick cpu; is DET_GPU_VENDORS ""; is DET_GPU_OTHER ""
   doctor kv Distro "Ubuntu 24.04"
-  doctor kv CPU "Intel(R) Core(TM) i5-8500T CPU @ 2.10GHz (6 cores)"
+  doctor kv CPU "Intel(R) Core(TM) i5-8500T CPU @ 2.10GHz (6 CPUs)"
   doctor kv Timezone America/Toronto
   doctor kv User "uid=$RUN_UID gid=$RUN_GID"
   doctor ok "64-bit x86 — every image in this repo has a build for it."
@@ -269,38 +269,67 @@ case_gpu_no_group_no_node() {   # override to a GPU with nothing to read the gid
 
 # ------------------------------------------------------------ memory
 # MemTotal is what the kernel reports: a little under the RAM installed.
+# doctor compares MiB against 7/8 of 4 and 8 GiB (3584, 7168) and shows
+# one decimal (T-042). Captured sizes: vm_ubuntu_2gib, vm_ubuntu_3gib.
+M_UNDER4="Under 4 GiB RAM. The full arr stack will thrash or get OOM-killed."
 case_mem_2gb() {
   mem_kb 2014560 0
-  is DET_MEM_GB 1; is DET_SWAP_GB 0
-  doctor kv Memory "1 GiB (swap 0 GiB)"
-  doctor err "Under 4 GiB RAM. The full arr stack will thrash or get OOM-killed."
+  is DET_MEM_MIB 1967; is DET_MEM_GIB 1.9; is DET_SWAP_MIB 0; is DET_SWAP_GIB 0.0
+  doctor kv Memory "1.9 GiB (swap 0.0 GiB)"
+  doctor err "$M_UNDER4"
 }
 
-case_mem_4gb() {
+case_mem_4gb() {   # typical for 4 GB installed
   mem_kb 3884728 0
-  current T-042 "a 4 GB machine is floored to 3 GiB and gets the under-4 error"
-  is DET_MEM_GB 3
-  doctor err "Under 4 GiB RAM. The full arr stack will thrash or get OOM-killed."
+  is DET_MEM_MIB 3793; is DET_MEM_GIB 3.7
+  doctor kv Memory "3.7 GiB (swap 0.0 GiB)"
+  doctor warn "3.7 GiB RAM is workable but tight for the whole stack."
+  doctor_lacks "Under 4 GiB"
 }
 
-case_mem_8gb() {
+case_mem_8gb() {   # typical for 8 GB installed, 2 GiB swap
   mem_kb 7975444 2097148
-  current T-042 "an 8 GB machine is floored to 7 GiB and called tight; 2 GiB swap reads 1"
-  is DET_MEM_GB 7; is DET_SWAP_GB 1
-  doctor warn "7 GiB RAM is workable but tight for the whole stack."
+  is DET_MEM_MIB 7788; is DET_MEM_GIB 7.6; is DET_SWAP_MIB 2047; is DET_SWAP_GIB 2.0
+  doctor kv Memory "7.6 GiB (swap 2.0 GiB)"
+  doctor ok "7.6 GiB RAM is comfortable for this stack."
+  doctor_lacks "tight"
 }
 
 case_mem_16gb() {
   mem_kb 16247300 0
-  is DET_MEM_GB 15
-  doctor ok "15 GiB RAM is comfortable for this stack."
-  doctor kv Memory "15 GiB (swap 0 GiB)"
+  is DET_MEM_MIB 15866; is DET_MEM_GIB 15.5
+  doctor ok "15.5 GiB RAM is comfortable for this stack."
+  doctor kv Memory "15.5 GiB (swap 0.0 GiB)"
+}
+
+case_mem_edge_4() {   # exactly 3584 MiB: tight, not under 4
+  mem_kb 3670016 0
+  is DET_MEM_MIB 3584
+  doctor warn "3.5 GiB RAM is workable but tight for the whole stack."
+}
+
+case_mem_below_edge_4() {   # 1 kB less: 3583 MiB
+  mem_kb 3670015 0
+  is DET_MEM_MIB 3583
+  doctor err "$M_UNDER4"
+}
+
+case_mem_edge_8() {   # exactly 7168 MiB: comfortable
+  mem_kb 7340032 0
+  is DET_MEM_MIB 7168
+  doctor ok "7.0 GiB RAM is comfortable for this stack."
+}
+
+case_mem_below_edge_8() {   # 7167 MiB
+  mem_kb 7340031 0
+  is DET_MEM_MIB 7167
+  doctor warn "7.0 GiB RAM is workable but tight for the whole stack."
 }
 
 case_mem_unreadable() {   # no /proc/meminfo (a broken container)
   rm -f "$R/proc/meminfo"
-  is DET_MEM_GB 0
-  doctor err "Under 4 GiB RAM. The full arr stack will thrash or get OOM-killed."
+  is DET_MEM_MIB 0; is DET_MEM_GIB 0.0
+  doctor err "$M_UNDER4"
 }
 
 # ------------------------------------------------------------ arch / CPU
@@ -317,7 +346,7 @@ Revision	: d04170
 Model		: Raspberry Pi 5 Model B Rev 1.0
 EOF
   is DET_ARCH aarch64; is DET_CPU "Raspberry Pi 5 Model B Rev 1.0"
-  doctor kv CPU "Raspberry Pi 5 Model B Rev 1.0 (4 cores)"
+  doctor kv CPU "Raspberry Pi 5 Model B Rev 1.0 (4 CPUs)"
   doctor warn "ARM64 (Raspberry Pi 5, Apple silicon VM, ARM server)."
   current T-046 "every pinned image publishes linux/arm64 (registry, 2026-11-05)"
   doctor note "Most images here are multi-arch, but a few are x86-only."
@@ -334,7 +363,7 @@ CPU architecture: 8
 CPU part	: 0xd08
 EOF
   is DET_CPU unknown
-  doctor kv CPU "unknown (2 cores)"
+  doctor kv CPU "unknown (2 CPUs)"
 }
 
 case_arch_armv7() {
@@ -349,7 +378,7 @@ case_arch_riscv64() {
 
 case_cpu_amd() {
   cpu_model "AMD Ryzen 5 5600X 6-Core Processor" 12; cores 12
-  doctor kv CPU "AMD Ryzen 5 5600X 6-Core Processor (12 cores)"
+  doctor kv CPU "AMD Ryzen 5 5600X 6-Core Processor (12 CPUs)"
 }
 
 # ------------------------------------------------------------ OS
@@ -800,7 +829,7 @@ EOS
   group video 44
   doctor kv Distro "Ubuntu 26.04"
   doctor kv Kernel "7.0.0-34-generic"
-  doctor kv CPU "Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz (8 cores)"
+  doctor kv CPU "Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz (8 CPUs)"
   doctor kv GPU "00:02.0 VGA compatible controller: Intel Corporation CoffeeLake-H GT2 "
   doctor kv "Render node" "/dev/dri/renderD128  (driver: nouveau)"
   doctor note "stable id: /dev/dri/by-path/pci-0000:00:02.0-render"
@@ -814,6 +843,43 @@ EOS
   env_absent AMD_RENDER_PATH
   setup ok "Intel Quick Sync (tested path)."
   setup note "You also have an NVIDIA card. Intel is still the better"
-  current T-042 "16 GB of RAM reads 14 GiB, a 4 GiB swap file reads 3"
-  doctor kv Memory "14 GiB (swap 3 GiB)"
+  is DET_MEM_MIB 15316; is DET_SWAP_MIB 4095
+  doctor kv Memory "15.0 GiB (swap 4.0 GiB)"
+  doctor ok "15.0 GiB RAM is comfortable for this stack."
+}
+
+# Test VMs (KVM, Ubuntu 26.04, docker base), T-042. MemTotal for RAM given
+# to the VM; nproc = vCPUs. Larger sizes are typical values in mem_4gb/8gb.
+case_vm_ubuntu_2gib() {
+  from 'captured: Ubuntu 26.04 KVM VM, 2048 MiB, 1 vCPU, 2026-11-06'
+  os_release <<'EOF'
+NAME="Ubuntu"
+VERSION_ID="26.04"
+EOF
+  arch 'x86_64'; kernel '7.0.0-43-generic'; cores '1'
+  cpu_model 'Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz' 1
+  mem_kb 2009876 0
+  group render 990
+  group video 44
+  is DET_MEM_MIB 1962; is DET_MEM_GIB 1.9; is DET_CORES 1
+  doctor kv CPU "Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz (1 CPU)"
+  doctor kv Memory "1.9 GiB (swap 0.0 GiB)"
+  doctor err "$M_UNDER4"
+}
+
+case_vm_ubuntu_3gib() {
+  from 'captured: Ubuntu 26.04 KVM VM, 3072 MiB, 2 vCPU, 2026-11-06'
+  os_release <<'EOF'
+NAME="Ubuntu"
+VERSION_ID="26.04"
+EOF
+  arch 'x86_64'; kernel '7.0.0-43-generic'; cores '2'
+  cpu_model 'Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz' 2
+  mem_kb 2972336 0
+  group render 990
+  group video 44
+  is DET_MEM_MIB 2902; is DET_MEM_GIB 2.8; is DET_CORES 2
+  doctor kv CPU "Intel(R) Core(TM) i5-9300H CPU @ 2.40GHz (2 CPUs)"
+  doctor kv Memory "2.8 GiB (swap 0.0 GiB)"
+  doctor err "$M_UNDER4"
 }

@@ -21,8 +21,9 @@ h1 "System"
 kv "Distro"    "$DET_DISTRO $DET_DISTRO_VER"
 kv "Kernel"    "$DET_KERNEL"
 kv "Arch"      "$DET_ARCH"
-kv "CPU"       "$DET_CPU ($DET_CORES cores)"
-kv "Memory"    "${DET_MEM_GB} GiB (swap ${DET_SWAP_GB} GiB)"
+# nproc: logical CPUs this process may use (threads, vCPUs; after cpusets)
+kv "CPU"       "$DET_CPU ($DET_CORES CPU$([ "$DET_CORES" = 1 ] || echo s))"
+kv "Memory"    "${DET_MEM_GIB} GiB (swap ${DET_SWAP_GIB} GiB)"
 kv "Timezone"  "$DET_TZ"
 kv "User"      "uid=$DET_UID gid=$DET_GID"
 
@@ -38,14 +39,17 @@ case "$DET_ARCH" in
   *) warn "Unrecognised architecture '$DET_ARCH'. You are off the tested path." ;;
 esac
 
-if [ "$DET_MEM_GB" -lt 4 ]; then
+# The README's "4 GiB works, 8 is comfortable" means RAM installed; the
+# kernel reports a little less (3.7 GiB for 4 GB is typical), so the
+# thresholds are 7/8 of each: 3584 and 7168 MiB (T-042).
+if [ "$DET_MEM_MIB" -lt 3584 ]; then
   err "Under 4 GiB RAM. The full arr stack will thrash or get OOM-killed."
   note "Pick fewer services, or add memory."
-elif [ "$DET_MEM_GB" -lt 8 ]; then
-  warn "${DET_MEM_GB} GiB RAM is workable but tight for the whole stack."
+elif [ "$DET_MEM_MIB" -lt 7168 ]; then
+  warn "${DET_MEM_GIB} GiB RAM is workable but tight for the whole stack."
   note "Fine for a handful of services. Watch swap."
 else
-  ok "${DET_MEM_GB} GiB RAM is comfortable for this stack."
+  ok "${DET_MEM_GIB} GiB RAM is comfortable for this stack."
 fi
 
 if [ "$DET_TZ" = "Etc/UTC" ] || [ -z "$DET_TZ" ]; then
