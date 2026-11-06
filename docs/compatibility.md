@@ -31,11 +31,14 @@ every service is brought up there together and checked: arr imports,
 Jellyfin, reverse proxy and DNS, monitoring, Immich backup and restore,
 notifications.
 
-One virtual machine has run too: a clean Ubuntu 26.04 cloud image
-(KVM, 2 vCPU, 3 GiB, Docker Engine from Docker's apt repository) ran
-`doctor.sh`, `setup.sh` and the default services on `main`, after
-`2026.10.1`. It ran them again with the qBittorrent fix below: every
-web UI answered on its host port, qBittorrent's login included.
+Virtual machines have run too: clean cloud images of Ubuntu 22.04,
+24.04 and 26.04 and Debian 12 and 13 (KVM, 2 vCPU, 3 GiB), each with
+Docker Engine 29.9.3 and Compose 5.7.0 from Docker's apt repository,
+installed the way the README says. On `main`, 2026-11-06, after
+`2026.10.1`, each one ran `doctor.sh`, `setup.sh --dry-run` (nothing
+written), `setup.sh` and a re-run (`.env` unchanged), then the
+default services: all six running, no restarts, every web UI
+answering on its host port, qBittorrent's login included.
 
 ---
 
@@ -44,10 +47,10 @@ web UI answered on its host port, qBittorrent's login included.
 | Distro | Level | Run / case | Notes |
 |---|---|---|---|
 | Ubuntu 26.04 | Physical | `2026.10.1`; `os_ubuntu_2604` | Every service. In `2026.10.1` qBittorrent's web UI answers 401 "Unauthorized" on its host port (`8181`): it rejects a Host header whose port is not the one it listens on (`8080` inside). Fixed after `2026.10.1`: it listens on `8181` inside too. The clean VM above opens it and logs in on its host port, and the release check now checks that. `doctor.sh` is not part of the release check; it last ran there on `main`, after `2026.10.1` |
-| Ubuntu 24.04 | Mocked | `baseline` | Name and version read correctly. CI runs `setup.sh` and `compose config` on an Ubuntu 24.04 runner; no service is deployed |
-| Ubuntu 22.04 | Mocked | `os_ubuntu_2204` | Name and version only |
-| Debian 12 | Mocked | `os_debian_12` | Name and version only |
-| Debian 13 | Mocked | `os_debian_13` | Name and version only |
+| Ubuntu 24.04 | Virtualized; Mocked | 2026-11-06, after `2026.10.1`; `baseline` | Default services deployed in a clean VM (above). CI also runs `setup.sh` and `compose config` on an Ubuntu 24.04 runner |
+| Ubuntu 22.04 | Virtualized; Mocked | 2026-11-06, after `2026.10.1`; `os_ubuntu_2204` | Default services deployed in a clean VM (above) |
+| Debian 12 | Virtualized; Mocked | 2026-11-06, after `2026.10.1`; `os_debian_12` | Default services deployed in a clean VM (above), Docker from [Docker's Debian instructions](https://docs.docker.com/engine/install/debian/); the README links the Ubuntu ones. The cloud image has no `git` or `cron`: Docker's packages bring `git`; `doctor.sh` names the missing `cron` |
+| Debian 13 | Virtualized; Mocked | 2026-11-06, after `2026.10.1`; `os_debian_13` | As Debian 12 |
 | Fedora 43 | Mocked | `os_fedora` | Name and version only. SELinux not handled |
 | Arch | Mocked | `os_arch` | Name only; rolling, so the version is blank |
 | No `/etc/os-release` | Mocked | `os_none` | Shown as `unknown` |
@@ -102,7 +105,7 @@ web UI answered on its host port, qBittorrent's login included.
 |---|---|---|---|
 | Docker Engine, rootful, Compose v2 plugin | Physical | `2026.10.1` | |
 | Not installed; daemon down; user not in `docker` group | Mocked | `docker_absent`, `docker_down_not_in_group`, `docker_down_in_group` | |
-| Distro `docker.io` without the Compose plugin | Mocked | `docker_no_compose` | `doctor.sh` reports an error |
+| Distro `docker.io` without the Compose plugin | Virtualized (Debian 12), **known problem**; Mocked | 2026-11-06, after `2026.10.1`; `docker_no_compose` | `doctor.sh` reports the missing plugin as a blocker. `setup.sh` does not check: it writes the config and says to run `docker compose up -d`, which Docker 20.10 rejects with "unknown shorthand flag: 'd' in -d", without naming Compose. Nothing starts |
 | Rootless | Mocked | `docker_rootless` | Detection only. Deploy Untested |
 
 ## Other detection
@@ -125,6 +128,7 @@ web UI answered on its host port, qBittorrent's login included.
 | Script says | This page |
 |---|---|
 | `doctor.sh`, ARM64: "a few are x86-only" | All pinned images publish `linux/arm64` |
+| `setup.sh` without the Compose plugin: no warning, "Start it: docker compose up -d" | That command fails there; `doctor.sh` names the plugin |
 
 Both scripts label the NVIDIA and AMD paths "NOT maintainer-tested";
 `doctor.sh` labels rootless Docker too. Neither labels ARM64.
