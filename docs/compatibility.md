@@ -104,8 +104,10 @@ notifications.
 |---|---|---|---|
 | Memory | Mocked, **known problem** | `mem_2gb`, `mem_4gb`, `mem_8gb`, `mem_16gb`, `mem_unreadable`, `capture_maintainer_laptop` | Memory and swap are rounded down to whole GiB: a 4 GB machine reads 3 and gets the "under 4 GiB" error, 8 GB reads 7 |
 | Ports, with `ss` or `netstat` | Mocked | `ports_container`, `ports_ours`, `ports_dns`, `ports_netstat_only` | A taken port moves to the next free one |
-| Ports, with neither tool | Mocked, **known problem** | `ports_no_tools` | Every port reads as free |
-| Timezone without `timedatectl` | Mocked | `tz_file`, `tz_ctl_fails`, `tz_none` | Falls back to `/etc/timezone`, then UTC |
+| Ports, with neither tool | Mocked | `ports_no_tools`, `ports_no_tools_rerun`, `ports_no_tools_fedora` | Not checked, and both scripts say so. `setup.sh` keeps the last run's port, or the default; a taken one makes `docker compose up` fail with "port is already allocated" or "address already in use" |
+| Timezone without `timedatectl` | Mocked | `tz_file`, `tz_ctl_fails`, `tz_localtime`, `tz_localtime_relative`, `tz_localtime_file`, `tz_none` | Falls back to `/etc/timezone`, then the `/etc/localtime` link, then UTC |
+| Missing `curl`, `git`, `crontab`, `lspci`, `ss`, `timedatectl` | Mocked | `tools_debian`, `tools_fedora`, `tools_arch`, `tools_installed_doctor`, `tools_update_check`, `tools_update`, `tools_update_schedule` | `doctor.sh` lists each one and what doesn't work without it; `update.sh` names the missing tool |
+| Install hints | Mocked | `tools_debian`, `tools_debian_plain`, `tools_ubuntu_derivative`, `tools_fedora`, `tools_rocky`, `tools_arch`, `tools_manjaro`, `tools_other_distro`, `tools_no_os_release`, `tools_update_schedule_arch` | `apt`, `dnf` or `pacman` from `/etc/os-release` (`ID`, `ID_LIKE`); any other distro gets the tool names only. Package names checked against each distro's package search, 2026-11-06. On Fedora and Arch the cron hint also starts the service |
 | User and group ids other than 1000 | Mocked | `user_ids` | |
 
 ---

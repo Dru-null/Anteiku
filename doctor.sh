@@ -53,6 +53,39 @@ if [ "$DET_TZ" = "Etc/UTC" ] || [ -z "$DET_TZ" ]; then
   note "Set one: sudo timedatectl set-timezone Europe/Dublin"
 fi
 
+# ----------------------------------------------------------------- tools
+# Bash, coreutils and Docker are the requirements. These are optional:
+# one line per missing one, with what doesn't work without it.
+h1 "Tools"
+MISSING=()
+if ! have ss; then
+  if have netstat; then
+    info "ss not found: ports are checked with netstat instead; their owner is only named for a container."
+  else
+    # The warning itself is under "Port availability": counted once.
+    info "ss not found, netstat neither: ports can't be checked, so setup.sh can't move a taken one."
+  fi
+  MISSING+=(ss)
+fi
+have lspci || { info "lspci not found: GPUs are shown by PCI id, without model names."; MISSING+=(lspci); }
+have curl  || { warn "curl not found: update.sh and the update check can't reach GitHub; ntfy messages aren't sent."; MISSING+=(curl); }
+have git   || { warn "git not found: update.sh can't move this folder to a new release."; MISSING+=(git); }
+have timedatectl || {
+  if [ "$DET_TZ_FROM" = default ]; then
+    info "timedatectl not found, and no /etc/timezone or /etc/localtime: the timezone is UTC."
+  else
+    info "timedatectl not found: the timezone came from $DET_TZ_FROM."
+  fi; MISSING+=(timedatectl); }
+if [ "${#MISSING[@]}" -eq 0 ]; then
+  ok "ss, lspci, curl, git and timedatectl are installed."
+else
+  note "$(install_hint "${MISSING[@]}")"
+fi
+if ! have crontab; then
+  warn "crontab not found: update.sh --schedule can't add the weekly check."
+  note "$(cron_hint)"
+fi
+
 # ---------------------------------------------------------------- docker
 h1 "Docker"
 if [ -z "$DET_DOCKER_VER" ]; then
@@ -160,17 +193,23 @@ note "stream to several devices at once, or remotely over limited upload."
 h1 "Port availability"
 PORTS="9696:Prowlarr 8181:qBittorrent 8989:Sonarr 7878:Radarr 8686:Lidarr 5299:LazyLibrarian 6767:Bazarr 5055:Seerr"
 CLASH=0
-for entry in $PORTS; do
-  p="${entry%%:*}"; name="${entry##*:}"
-  if port_in_use "$p"; then
-    warn "$p ($name) is already in use by: $(who_has_port "$p")"
-    CLASH=$((CLASH+1))
-  fi
-done
-[ "$CLASH" -eq 0 ] && ok "All default ports for the arr stack are free."
-[ "$CLASH" -gt 0 ] && note "setup.sh can shift these. Nothing is forced to a fixed port."
+if ! ports_checkable; then
+  warn "Can't check the ports: neither ss nor netstat is installed."
+  note "setup.sh will keep the default ports without knowing whether"
+  note "they are free. $(install_hint ss)"
+else
+  for entry in $PORTS; do
+    p="${entry%%:*}"; name="${entry##*:}"
+    if port_in_use "$p"; then
+      warn "$p ($name) is already in use by: $(who_has_port "$p")"
+      CLASH=$((CLASH+1))
+    fi
+  done
+  [ "$CLASH" -eq 0 ] && ok "All default ports for the arr stack are free."
+  [ "$CLASH" -gt 0 ] && note "setup.sh can shift these. Nothing is forced to a fixed port."
+fi
 
-if port_in_use 53; then
+if port_in_use 53; then   # 2 (can't tell) is not "taken": the warning above covers it
   echo
   warn "Port 53 is taken by: $(who_has_port 53)"
   note "This is THE classic Pi-hole faceplant. On most Ubuntu/Debian boxes it"
@@ -229,6 +268,8 @@ else
     tail -n +3 update-logs/failed | while IFS= read -r l; do note "  $l"; done
   elif [ "$UPD_MODE" = off ]; then
     ok "Update checks are off. ./update.sh --check asks by hand."
+  elif ! have curl; then
+    note "Could not ask GitHub for the newest release: curl is not installed."
   elif ! release_latest; then
     note "Could not ask GitHub for the newest release (offline?)."
   elif [ -n "$REL_NOW" ] && ! version_gt "$REL_TAG" "$REL_NOW"; then
@@ -236,8 +277,10 @@ else
   else
     warn "Anteiku $REL_TAG is available. See: ./update.sh --check"
   fi
-  if [ "$UPD_MODE" != off ] && ! { have crontab && crontab -l 2>/dev/null \
-       | awk -v t="# anteiku-update $PWD" 'substr($0, length($0) - length(t) + 1) == t {f=1} END {exit !f}'; }; then
+  if [ "$UPD_MODE" != off ] && ! have crontab; then
+    note "No weekly check scheduled, and none can be: crontab is not installed."
+  elif [ "$UPD_MODE" != off ] && ! crontab -l 2>/dev/null \
+       | awk -v t="# anteiku-update $PWD" 'substr($0, length($0) - length(t) + 1) == t {f=1} END {exit !f}'; then
     note "No weekly check scheduled. To add one:  ./update.sh --schedule"
   fi
 fi

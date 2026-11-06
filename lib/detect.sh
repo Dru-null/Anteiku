@@ -102,15 +102,28 @@ existing_dir() {
 # --- system -----------------------------------------------------------
 detect_os() {
   local R="${ANTEIKU_DETECT_ROOT:-}"
-  DET_DISTRO="unknown"; DET_DISTRO_VER=""
+  DET_DISTRO="unknown"; DET_DISTRO_VER=""; DET_DISTRO_ID=""; DET_DISTRO_LIKE=""
   if [ -r "$R/etc/os-release" ]; then
     # shellcheck disable=SC1091
     . "$R/etc/os-release"
     DET_DISTRO="${NAME:-unknown}"; DET_DISTRO_VER="${VERSION_ID:-}"
+    DET_DISTRO_ID="${ID:-}"; DET_DISTRO_LIKE="${ID_LIKE:-}"
   fi
   DET_KERNEL="$(uname -r)"
   DET_ARCH="$(uname -m)"
-  DET_TZ="$( (timedatectl show -p Timezone --value 2>/dev/null) || cat "$R/etc/timezone" 2>/dev/null || echo 'Etc/UTC')"
+  # timedatectl needs systemd running. Without it: /etc/timezone (Debian
+  # only), then the /etc/localtime link (every distro), then UTC.
+  local lt
+  DET_TZ_FROM=timedatectl
+  if ! DET_TZ="$(timedatectl show -p Timezone --value 2>/dev/null)" || [ -z "$DET_TZ" ]; then
+    DET_TZ_FROM=/etc/timezone
+    if ! DET_TZ="$(cat "$R/etc/timezone" 2>/dev/null)" || [ -z "$DET_TZ" ]; then
+      DET_TZ_FROM=/etc/localtime; DET_TZ=""
+      lt="$(readlink "$R/etc/localtime" 2>/dev/null)"
+      case "$lt" in */zoneinfo/?*) DET_TZ="${lt#*/zoneinfo/}" ;; esac
+      [ -z "$DET_TZ" ] && { DET_TZ_FROM=default; DET_TZ='Etc/UTC'; }
+    fi
+  fi
   DET_UID="$(id -u)"; DET_GID="$(id -g)"
 }
 
@@ -309,13 +322,19 @@ detect_tailscale() {
 }
 
 # --- ports ------------------------------------------------------------
-# port_in_use <port> -> 0 if something is listening
+# ports_checkable -> 0 if ss or netstat can list what is listening.
+ports_checkable() { have ss || have netstat; }
+
+# port_in_use <port> -> 0 if something is listening, 1 if nothing is,
+# 2 if it can't tell (neither ss nor netstat). Never read 2 as free.
 port_in_use() {
   local p="$1"
   if have ss; then
     ss -lntuH 2>/dev/null | awk '{print $5}' | grep -qE "[:.]${p}\$" && return 0
   elif have netstat; then
     netstat -lntu 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$" && return 0
+  else
+    return 2
   fi
   return 1
 }
@@ -335,8 +354,87 @@ who_has_port() {
          | grep -E "[:.]${p}->" | awk '{print $1}' | head -1)"
     [ -n "$c" ] && out="container '${c}'"
   fi
-  [ -z "$out" ] && out="unidentified (try: sudo ss -lntup | grep :${p})"
+  if [ -z "$out" ]; then
+    # Suggest the tool that is installed.
+    if have ss; then out="unidentified (try: sudo ss -lntup | grep :${p})"
+    else out="unidentified (try: sudo netstat -lntup | grep :${p})"; fi
+  fi
   echo "$out"
+}
+
+# --- host tools -------------------------------------------------------
+# Optional tools, what each is for, and its package per family:
+#   tool|debian package|fedora package|arch package
+# Checked against each distro's package search (Debian trixie, Ubuntu
+# 26.04, Fedora 43, Arch), 2026-11-06.
+HOST_TOOLS="
+ss|iproute2|iproute|iproute2
+netstat|net-tools|net-tools|net-tools
+lspci|pciutils|pciutils|pciutils
+curl|curl|curl|curl
+git|git|git|git
+crontab|cron|cronie|cronie
+timedatectl|systemd|systemd|systemd
+"
+
+# pkg_family -> debian | fedora | arch, or nothing: from os-release ID
+# and ID_LIKE (Ubuntu says ID_LIKE=debian, RHEL and Rocky list fedora,
+# Manjaro "arch").
+pkg_family() {
+  local w f="${ANTEIKU_DETECT_ROOT:-}/etc/os-release"
+  # update.sh doesn't run detect_os: read the two keys here.
+  if [ -z "${DET_DISTRO_ID+x}" ] && [ -r "$f" ]; then
+    DET_DISTRO_ID="$(sed -n 's/^ID=//p' "$f" | tr -d "\"'" | head -n 1)"
+    DET_DISTRO_LIKE="$(sed -n 's/^ID_LIKE=//p' "$f" | tr -d "\"'" | head -n 1)"
+  fi
+  for w in ${DET_DISTRO_ID:-} ${DET_DISTRO_LIKE:-}; do
+    case "$w" in
+      debian|ubuntu) echo debian; return ;;
+      fedora) echo fedora; return ;;
+      arch) echo arch; return ;;
+    esac
+  done
+}
+
+# pkg_of <tool> -> its package on this distro family, or nothing.
+pkg_of() {
+  local fam col t deb fed arc
+  fam="$(pkg_family)"
+  while IFS='|' read -r t deb fed arc; do
+    [ "$t" = "$1" ] || continue
+    case "$fam" in debian) col="$deb" ;; fedora) col="$fed" ;; arch) col="$arc" ;; *) col="" ;; esac
+    echo "$col"; return
+  done <<< "$HOST_TOOLS"
+}
+
+# install_hint <tool>... -> one line: the command for this distro's
+# package manager, or a generic line naming the tools. Never apt on a
+# distro that doesn't have it.
+install_hint() {
+  local t pkgs="" fam
+  fam="$(pkg_family)"
+  if [ -z "$fam" ]; then
+    echo "Install them with your distro's package manager: $*"; return
+  fi
+  for t in "$@"; do
+    case " $pkgs " in *" $(pkg_of "$t") "*) ;; *) pkgs="${pkgs:+$pkgs }$(pkg_of "$t")" ;; esac
+  done
+  case "$fam" in
+    debian) echo "Install: sudo apt install $pkgs" ;;
+    fedora) echo "Install: sudo dnf install $pkgs" ;;
+    arch)   echo "Install: sudo pacman -S $pkgs" ;;
+  esac
+}
+
+# cron_hint -> how to get a crontab that also runs: Fedora and Arch
+# install cronie without starting it (Arch doesn't even enable it).
+cron_hint() {
+  case "$(pkg_family)" in
+    debian) echo "Install: sudo apt install cron" ;;
+    fedora) echo "Install: sudo dnf install cronie && sudo systemctl enable --now crond" ;;
+    arch)   echo "Install: sudo pacman -S cronie && sudo systemctl enable --now cronie" ;;
+    *)      echo "Install a cron daemon (cronie or cron) with your distro's package manager, and start it." ;;
+  esac
 }
 
 # --- disk -------------------------------------------------------------

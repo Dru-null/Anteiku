@@ -435,7 +435,25 @@ case_user_ids() {   # PUID/PGID are whoever runs setup.sh, not 1000
 
 case_tz_file() {   # no timedatectl (no systemd): /etc/timezone
   no_tool timedatectl; tz_file Europe/Lisbon
-  is DET_TZ Europe/Lisbon; env_is TZ Europe/Lisbon
+  is DET_TZ Europe/Lisbon; env_is TZ Europe/Lisbon; is DET_TZ_FROM /etc/timezone
+  doctor info "timedatectl not found: the timezone came from /etc/timezone."
+}
+
+case_tz_localtime() {   # Fedora/Arch have no /etc/timezone: the /etc/localtime link
+  no_tool timedatectl; tz_link /usr/share/zoneinfo/Europe/Berlin
+  is DET_TZ Europe/Berlin; is DET_TZ_FROM /etc/localtime; env_is TZ Europe/Berlin
+  doctor info "timedatectl not found: the timezone came from /etc/localtime."
+  doctor_lacks "Timezone looks unset"
+}
+
+case_tz_localtime_relative() {   # systemd writes the link relative
+  no_tool timedatectl; tz_link ../usr/share/zoneinfo/America/Sao_Paulo
+  is DET_TZ America/Sao_Paulo
+}
+
+case_tz_localtime_file() {   # a copied file, not a link: nothing to read
+  no_tool timedatectl; mkdir -p "$R/etc"; : > "$R/etc/localtime"
+  is DET_TZ Etc/UTC; is DET_TZ_FROM default
 }
 
 case_tz_ctl_fails() {   # timedatectl installed, systemd not running (a container)
@@ -445,8 +463,9 @@ case_tz_ctl_fails() {   # timedatectl installed, systemd not running (a containe
 
 case_tz_none() {   # neither: UTC, and doctor says so
   no_tool timedatectl
-  is DET_TZ Etc/UTC; env_is TZ Etc/UTC
+  is DET_TZ Etc/UTC; env_is TZ Etc/UTC; is DET_TZ_FROM default
   doctor warn "Timezone looks unset (Etc/UTC). Schedules and logs will be in UTC."
+  doctor info "timedatectl not found, and no /etc/timezone or /etc/localtime: the timezone is UTC."
 }
 
 # ------------------------------------------------------------ Docker
@@ -517,18 +536,53 @@ case_ports_dns() {   # systemd-resolved on 53, the Pi-hole trap
   doctor warn "Port 53 is taken by: systemd-resolve"
 }
 
-case_ports_netstat_only() {   # no ss (net-tools only)
+case_ports_netstat_only() {   # no ss (net-tools only): the hint names the tool that is there
   listen 8989; no_tool ss
-  is port.8989 "used by unidentified (try: sudo ss -lntup | grep :8989)"
+  is port.8989 "used by unidentified (try: sudo netstat -lntup | grep :8989)"
   env_is PORT_SONARR 8990
+  doctor info "ss not found: ports are checked with netstat instead; their owner is only named for a container."
+  doctor warn "8989 (Sonarr) is already in use by: unidentified (try: sudo netstat -lntup | grep :8989)"
 }
 
-case_ports_no_tools() {   # neither ss nor netstat
+case_ports_no_tools() {   # neither ss nor netstat: never "free"; setup keeps the default and says so
   listen 8989; no_tool ss netstat
-  current T-044 "with neither tool every port reads as free"
-  is port.8989 free
-  doctor ok "All default ports for the arr stack are free."
+  is port.8989 unchecked; is port.7878 unchecked; is port.53 unchecked
+  doctor warn "Can't check the ports: neither ss nor netstat is installed."
+  doctor note "they are free. Install: sudo apt install iproute2"
+  doctor info "ss not found, netstat neither: ports can't be checked, so setup.sh can't move a taken one."
+  doctor_lacks "All default ports for the arr stack are free."
+  doctor_lacks "Port 53 is taken"
+  setup warn "Can't check which ports are free: neither ss nor netstat is installed."
+  setup note "Install: sudo apt install iproute2, then re-run this script: it moves taken ports."
+  setup info "sonarr: 8989 (not checked)"
+  setup info "PORT_JELLYFIN_DISCOVERY: 7359  (client auto-discovery, not checked)"
+  setup_lacks "taken by"
   env_is PORT_SONARR 8989
+}
+
+case_ports_no_tools_rerun() {   # an earlier run moved Sonarr: unchecked, its port stays put
+  listen 8989; no_tool ss netstat
+  prev_env <<'ENV'
+COMPOSE_PROFILES=sonarr,pihole
+PORT_SONARR=8990
+PORT_PIHOLE=53
+ENV
+  env_is PORT_SONARR 8990; env_is PORT_PIHOLE 53
+  setup info "sonarr: 8990 (not checked)"
+  setup warn "Port 53 not checked. Pi-hole can only serve your network on 53."
+  setup_lacks "Port 53 is free"
+}
+
+case_ports_no_tools_fedora() {   # the hints follow the distro
+  no_tool ss netstat
+  os_release <<'EOF2'
+NAME="Fedora Linux"
+ID=fedora
+VERSION_ID=43
+EOF2
+  doctor note "they are free. Install: sudo dnf install iproute"
+  setup note "Install: sudo dnf install iproute, then re-run this script: it moves taken ports."
+  doctor_lacks "apt install"; setup_lacks "apt install"
 }
 
 # ------------------------------------------------------------ disk (df helpers)
@@ -553,6 +607,144 @@ case_disk_full() {
 case_tools_no_nproc() {
   no_tool nproc
   is DET_CORES "?"
+}
+
+# curl, git and crontab are never on the fixtures' PATH: every case is a
+# machine without them. These check what doctor and update.sh say.
+case_tools_debian() {   # Ubuntu (ID_LIKE=debian): apt
+  is family debian; is hint "Install: sudo apt install iproute2 curl"
+  doctor warn "curl not found: update.sh and the update check can't reach GitHub; ntfy messages aren't sent."
+  doctor warn "git not found: update.sh can't move this folder to a new release."
+  doctor note "Install: sudo apt install curl git"
+  doctor warn "crontab not found: update.sh --schedule can't add the weekly check."
+  doctor note "Install: sudo apt install cron"
+  doctor_lacks "lspci not found"; doctor_lacks "ss not found"; doctor_lacks "timedatectl not found"
+}
+
+case_tools_debian_plain() {   # Debian itself: ID=debian, no ID_LIKE
+  os_release <<'EOF2'
+NAME="Debian GNU/Linux"
+ID=debian
+VERSION_ID="13"
+EOF2
+  is family debian; is cron_hint "Install: sudo apt install cron"
+}
+
+case_tools_ubuntu_derivative() {   # ID_LIKE=ubuntu only (some derivatives)
+  os_release <<'EOF2'
+NAME="Example OS"
+ID=exampleos
+ID_LIKE=ubuntu
+EOF2
+  is family debian
+}
+
+case_tools_fedora() {
+  os_release <<'EOF2'
+NAME="Fedora Linux"
+ID=fedora
+VERSION_ID=43
+EOF2
+  no_tool lspci
+  is family fedora; is hint "Install: sudo dnf install iproute curl"
+  is cron_hint "Install: sudo dnf install cronie && sudo systemctl enable --now crond"
+  doctor info "lspci not found: GPUs are shown by PCI id, without model names."
+  doctor note "Install: sudo dnf install pciutils curl git"
+  doctor note "Install: sudo dnf install cronie && sudo systemctl enable --now crond"
+  doctor_lacks "apt install"
+}
+
+case_tools_rocky() {   # ID_LIKE="rhel centos fedora": dnf
+  os_release <<'EOF2'
+NAME="Rocky Linux"
+ID="rocky"
+ID_LIKE="rhel centos fedora"
+VERSION_ID="9.6"
+EOF2
+  is family fedora; is hint "Install: sudo dnf install iproute curl"
+}
+
+case_tools_arch() {
+  os_release <<'EOF2'
+NAME="Arch Linux"
+ID=arch
+BUILD_ID=rolling
+EOF2
+  is family arch; is hint "Install: sudo pacman -S iproute2 curl"
+  is cron_hint "Install: sudo pacman -S cronie && sudo systemctl enable --now cronie"
+  doctor note "Install: sudo pacman -S curl git"
+  doctor_lacks "apt install"; doctor_lacks "dnf install"
+}
+
+case_tools_manjaro() {   # ID_LIKE=arch
+  os_release <<'EOF2'
+NAME="Manjaro Linux"
+ID="manjaro"
+ID_LIKE="arch"
+EOF2
+  is family arch
+}
+
+case_tools_other_distro() {   # openSUSE: no guess at a package manager
+  os_release <<'EOF2'
+NAME="openSUSE Tumbleweed"
+ID="opensuse-tumbleweed"
+ID_LIKE="opensuse suse"
+EOF2
+  is family ""; is hint "Install them with your distro's package manager: ss curl"
+  doctor note "Install them with your distro's package manager: curl git"
+  doctor note "Install a cron daemon (cronie or cron) with your distro's package manager, and start it."
+  doctor_lacks "apt install"; doctor_lacks "dnf install"; doctor_lacks "pacman -S"
+}
+
+case_tools_no_os_release() {
+  no_os_release
+  is family ""
+  doctor note "Install them with your distro's package manager: curl git"
+}
+
+# An install (copied into the case's temp dir, with a .env) reaches the
+# update paths. Without curl, git or crontab nothing touches the network
+# or a crontab.
+case_tools_installed_doctor() {
+  installed notify
+  doctor note "Could not ask GitHub for the newest release: curl is not installed."
+  doctor note "No weekly check scheduled, and none can be: crontab is not installed."
+  doctor_lacks "(offline?)"; doctor_lacks "To add one:  ./update.sh --schedule"
+}
+
+case_tools_update_check() {
+  installed
+  exits update_check 2
+  upd update_check err "curl is not installed: it asks GitHub for the newest release."
+  upd update_check note "Install: sudo apt install curl"
+}
+
+case_tools_update() {   # git first: the old message blamed the folder
+  installed
+  exits update 1
+  upd update err "git is not installed: update.sh needs it."
+  upd update note "Install: sudo apt install git"
+  upd_lacks update "not a git checkout"
+}
+
+case_tools_update_schedule() {
+  installed
+  exits update_schedule 1
+  upd update_schedule err "crontab not found."
+  upd update_schedule note "Install: sudo apt install cron"
+}
+
+case_tools_update_schedule_arch() {   # update.sh reads os-release itself; quoted, as Manjaro writes it
+  os_release <<'EOF2'
+NAME="Manjaro Linux"
+ID="manjaro"
+ID_LIKE="arch"
+EOF2
+  installed
+  exits update_schedule 1
+  upd update_schedule note "Install: sudo pacman -S cronie && sudo systemctl enable --now cronie"
+  upd_lacks update_schedule "apt install"
 }
 
 # ------------------------------------------------------------ captured
