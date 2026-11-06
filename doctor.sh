@@ -225,8 +225,13 @@ fi
 h1 "Storage"
 ROOT_FS="$(fs_of .)"; ROOT_FREE="$(free_gb .)"; ROOT_TYPE="$(fstype_of .)"
 kv "This directory" "$ROOT_FS  ($ROOT_TYPE, ${ROOT_FREE} GB free)"
+# Image sizes as a default Docker 29 install stores them (T-068): the
+# starter set about 4 GB, every service about 17 GB. update.sh pulls the
+# new images while the old ones are still there.
 if [ "${ROOT_FREE:-0}" -lt 10 ]; then
-  err "Under 10 GB free. Container images alone will not fit."
+  err "Under 10 GB free. The starter set's images take about 4 GB, and an update needs room for new ones."
+elif [ "${ROOT_FREE:-0}" -lt 25 ]; then
+  warn "${ROOT_FREE} GB free — enough for the starter set, not for every service: all the images take about 17 GB."
 elif [ "${ROOT_FREE:-0}" -lt 50 ]; then
   warn "${ROOT_FREE} GB free — enough for images and configs, not a library."
 else

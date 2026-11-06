@@ -90,7 +90,7 @@ web UI answered on its host port, qBittorrent's login included.
 | Layout | Level | Run / case | Notes |
 |---|---|---|---|
 | One ext4 disk, configs and media together | Physical | `2026.10.1` | Imports are hardlinks (link count 2) |
-| Free space warnings | Mocked | `disk_ok`, `disk_tight`, `disk_full` | Thresholds and the filesystem name only. Nothing else about xfs or btrfs is tested |
+| Free space warnings | Mocked | `disk_ok`, `disk_tight`, `disk_full`, `disk_below_10`, `disk_edge_10`, `disk_starter_only`, `disk_edge_25`, `disk_below_50`, `disk_edge_50` | Thresholds and the filesystem name only. The image sizes they quote (starter set about 4 GB, every service about 17 GB) were measured on a default Docker 29 install, 2026-11-06, after `2026.10.1`. Nothing else about xfs or btrfs is tested |
 | Downloads and library on separate disks | Untested | — | Hardlinks can't cross filesystems; imports become copies |
 | exFAT, NTFS, FAT32 media disks | Untested | — | No hardlinks, no Unix ownership |
 | Read-only or missing folders | Untested | — | |

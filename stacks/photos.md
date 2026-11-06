@@ -44,7 +44,7 @@ All of it runs on your **CPU** unless you have a supported GPU.
 - Everything else on the box feels slow while it runs. Jellyfin
   transcodes, *arr imports, the web UIs
 - On a laptop or mini-PC: sustained full load, hot machine, loud fans
-- The image is ~1.5 GB; the model cache adds a few GB more
+- The image takes about 1 GB of disk; the model cache adds a few GB more
 
 This is the single most demanding thing in this repo. On a modest
 machine the initial scan is not a background task you forget about —

@@ -654,14 +654,53 @@ case_disk_ok() {
   doctor ok "512 GB free here."
 }
 
+# Image sizes as a default Docker 29 install stores them (T-068): the
+# starter set about 4 GB, every service about 17 GB.
+D_UNDER10="Under 10 GB free. The starter set's images take about 4 GB, and an update needs room for new ones."
+D_STARTER="free — enough for the starter set, not for every service: all the images take about 17 GB."
+D_LIBRARY="free — enough for images and configs, not a library."
 case_disk_tight() {
   disk 30 xfs
-  doctor warn "30 GB free — enough for images and configs, not a library."
+  doctor warn "30 GB $D_LIBRARY"
+  doctor_lacks "starter set"
 }
 
 case_disk_full() {
   disk 6 btrfs
-  doctor err "Under 10 GB free. Container images alone will not fit."
+  doctor err "$D_UNDER10"
+}
+
+case_disk_edge_10() {   # 9 is under, 10 is the starter set
+  disk 10
+  doctor warn "10 GB $D_STARTER"
+  doctor_lacks "Under 10 GB"
+}
+
+case_disk_below_10() {
+  disk 9
+  doctor err "$D_UNDER10"
+}
+
+case_disk_starter_only() {
+  disk 24
+  doctor warn "24 GB $D_STARTER"
+  doctor_lacks "not a library"
+}
+
+case_disk_edge_25() {
+  disk 25
+  doctor warn "25 GB $D_LIBRARY"
+  doctor_lacks "starter set"
+}
+
+case_disk_below_50() {
+  disk 49
+  doctor warn "49 GB $D_LIBRARY"
+}
+
+case_disk_edge_50() {
+  disk 50
+  doctor ok "50 GB free here."
 }
 
 # ------------------------------------------------------------ other tools
