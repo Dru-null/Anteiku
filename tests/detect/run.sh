@@ -146,6 +146,10 @@ locked_dir()   {
   if ! { mkdir -p "$1" && chmod 555 "$1"; }; then _fail "locked_dir: could not make $1"; return 0; fi
   [ -w "$1" ] && _fail "locked_dir: $1 is still writable (running as root?)"; return 0
 }
+# ports_md_blocked: setup_real's copy gets a folder named ports.md, so the
+# write fails there and nowhere else (T-080). Never /dev/full: a link out
+# of the case's dir is a write the host might take.
+ports_md_blocked() { _frozen ports_md_blocked; : > "$T/ports.blocked"; }
 install_env()  { # stdin: more .env lines for the install (after 'installed')
   _frozen install_env; [ -d "$FX/install" ] || { _fail "install_env: needs the 'installed' fixture"; return 0; }
   cat >> "$FX/install/.env"
@@ -408,6 +412,7 @@ _run() { # probe | doctor | setup | setup_real | update_check | update | update_
       tar -C "$REPO" --exclude=./.git --exclude=./.env -cf - . | tar -C "$FX/real" -xf - \
         || _fail "setup_real: copy failed"
       [ -f "$FX/prev.env" ] && cp "$FX/prev.env" "$FX/real/.env"
+      if [ -f "$T/ports.blocked" ] && ! mkdir "$FX/real/ports.md"; then _fail "ports_md_blocked: could not make the folder"; fi
       local before; before="$(ls -A "$REPO")"
       (cd "$FX/real" && _env TMPDIR="$FX/tmp" STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
          APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos "${SUENV[@]}" \

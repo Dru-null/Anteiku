@@ -1383,21 +1383,27 @@ write_ports_md() {
     echo '```'
     echo
     echo "Re-running \`./setup.sh\` regenerates this file."
-  } > "$out" 2>/dev/null
+  } 2>/dev/null > "$out"   # stderr first: a file that can't be opened says nothing either
   trap - ERR
   if [ "$wf" -ne 0 ]; then
-    rm -f "$out"; warn "could not write $out (is the disk full?). Run ./setup.sh again once there is room."
+    rm -f "$out" 2>/dev/null; warn "could not write $out (is the disk full?). Run ./setup.sh again once there is room."
     return 0
   fi
-  ok "wrote $out"
+  ok "wrote $out"; PORTS_MD=1
 }
+PORTS_MD=0
 write_ports_md
 
 h1 "Next"
 say_docker_unchecked
 say_compose_missing
 step() { printf '  %s%s%s  %-20s %s%s%s%s\n' "$C_CRIM$C_B" "$1" "$C_RST" "$2" "$C_B$C_INF" "$3" "$C_RST" "${4:+  $C_GREY$4$C_RST}"; }
-step 1 "Your ports"       "cat ports.md"          "bookmark this"
+# Never send anyone to a ports.md that isn't there (T-080): a re-run writes it.
+if [ "$PORTS_MD" -eq 1 ]; then
+  step 1 "Your ports"     "cat ports.md"          "bookmark this"
+else
+  step 1 "Your ports"     "./setup.sh"            "run again: ports.md wasn't written (see above)"
+fi
 step 2 "Review config"    "cat $ENV_FILE"
 step 3 "Check the plan"   "docker compose config"
 if [ "$RERUN" -eq 1 ]; then

@@ -52,6 +52,8 @@ interest. How to update: [docs/updating.md](docs/updating.md).
 - `--help` prints the script's header and nothing else, from any folder.
   `setup.sh --help` used to end in three lines of code, and every
   script's help printed only an error when run from another folder.
+- When `setup.sh` can't write `ports.md`, its first next step is to run
+  it again, not `cat ports.md`.
 
 ---
 
