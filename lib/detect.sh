@@ -357,6 +357,28 @@ MSG_COMPOSE_INSTALL="Install the plugin: https://docs.docker.com/compose/install
 # compose_missing -> 0 if Docker is installed and its compose plugin isn't.
 compose_missing() { [ -n "$DET_DOCKER_VER" ] && [ -z "$DET_COMPOSE_VER" ]; }
 
+# compose.yaml's include: with project_directory needs Compose 2.20.3:
+# Docker's docs give that for include (2.20.0 added it; 2.20.3's
+# compose-go resolves variables in included files differently). 2.19
+# skips include: and fails on the hw override: 'service "jellyfin" has
+# neither an image nor a build context specified' (S46, T-012).
+COMPOSE_MIN="2.20.3"
+MSG_COMPOSE_WHY="Older ones can't read compose.yaml (include:) and fail with"
+MSG_COMPOSE_ERR="  'service \"…\" has neither an image nor a build context specified'."
+MSG_COMPOSE_UPDATE="Update the plugin: https://docs.docker.com/compose/install/"
+# compose_too_old -> 0 if the plugin's version reads as below COMPOSE_MIN.
+# A version that doesn't start with x.y.z (v allowed) isn't called old.
+compose_too_old() {
+  local v="${DET_COMPOSE_VER#v}" a b c x y z
+  [[ "$v" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]] || return 1
+  a=$((10#${BASH_REMATCH[1]})); b=$((10#${BASH_REMATCH[2]})); c=$((10#${BASH_REMATCH[3]}))
+  IFS=. read -r x y z <<< "$COMPOSE_MIN"
+  [ "$a" -ne "$x" ] && { [ "$a" -lt "$x" ]; return; }
+  [ "$b" -ne "$y" ] && { [ "$b" -lt "$y" ]; return; }
+  [ "$c" -lt "$z" ]
+}
+compose_old_msg() { echo "Compose $DET_COMPOSE_VER is too old: this repo needs $COMPOSE_MIN or newer."; }
+
 # --- remote access ----------------------------------------------------
 detect_tailscale() {
   DET_TS_INSTALLED=0; DET_TS_UP=0; DET_TS_IP=""; DET_TS_NAME=""

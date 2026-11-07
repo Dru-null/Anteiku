@@ -67,6 +67,11 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   no `qBittorrent.conf` yet. An existing install keeps its own settings;
   `setup.sh` says whether forwarding is on, and where to turn it off.
   [stacks/arr.md](stacks/arr.md#traps)
+- `doctor.sh` reports a Compose plugin older than 2.20.3 as a blocker,
+  and `setup.sh` warns about it before its `docker compose` steps.
+  Older ones can't read `compose.yaml` (`include:`) and fail with an
+  error that names neither: `service "…" has neither an image nor a
+  build context specified`.
 
 ---
 

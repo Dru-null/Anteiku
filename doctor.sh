@@ -103,7 +103,14 @@ else
   kv "Engine" "$DET_DOCKER_VER"
   if [ -n "$DET_COMPOSE_VER" ]; then
     kv "Compose" "$DET_COMPOSE_VER (plugin)"
-    ok "$MSG_COMPOSE_OK"
+    if compose_too_old; then
+      err "$(compose_old_msg)"
+      note "$MSG_COMPOSE_WHY"
+      note "$MSG_COMPOSE_ERR"
+      note "$MSG_COMPOSE_UPDATE"
+    else
+      ok "$MSG_COMPOSE_OK"
+    fi
   else
     err "$MSG_COMPOSE_MISSING"
     note "$MSG_COMPOSE_OLD"

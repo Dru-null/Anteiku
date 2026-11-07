@@ -83,6 +83,14 @@ detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker
 # "compose" (docker.io 20.10: "unknown shorthand flag: 'd' in -d"). So:
 # write it, and say so right before those steps (T-073).
 say_compose_missing() {
+  if compose_too_old; then
+    warn "$(compose_old_msg)"
+    note "$MSG_COMPOSE_WHY"
+    note "$MSG_COMPOSE_ERR"
+    note "$MSG_COMPOSE_UPDATE"
+    note "This configuration doesn't depend on it: no need to re-run after."
+    echo; return 0
+  fi
   compose_missing || return 0
   warn "$MSG_COMPOSE_MISSING"
   note "$MSG_COMPOSE_OLD"

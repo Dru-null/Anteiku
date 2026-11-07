@@ -597,6 +597,74 @@ case_docker_no_compose() {   # distro docker.io without the compose plugin
   next_lacks "Not checked without Docker"
 }
 
+# Compose below 2.20.3 can't read compose.yaml's include: (T-012, S46).
+C_OLD_WHY="Older ones can't read compose.yaml (include:) and fail with"
+C_OLD_ERR="  'service \"…\" has neither an image nor a build context specified'."
+C_UPDATE="Update the plugin: https://docs.docker.com/compose/install/"
+C_OK="Compose plugin present — 'docker compose', the syntax this repo uses."
+
+case_compose_old_2_19() {   # the last release without include:
+  compose_is 2.19.1
+  is DET_COMPOSE_VER 2.19.1
+  doctor kv Compose "2.19.1 (plugin)"
+  doctor err "Compose 2.19.1 is too old: this repo needs 2.20.3 or newer."
+  doctor note "$C_OLD_WHY"; doctor note "$C_OLD_ERR"; doctor note "$C_UPDATE"
+  doctor_lacks "$C_OK"
+  setup warn "Compose 2.19.1 is too old: this repo needs 2.20.3 or newer."
+  setup note "$C_UPDATE"
+  setup_lacks "Compose plugin ('docker compose') is missing"
+  env_is COMPOSE_PROFILES "prowlarr,qbittorrent,sonarr,radarr,seerr,jellyfin"
+  next warn "Compose 2.19.1 is too old: this repo needs 2.20.3 or newer."
+  next note "This configuration doesn't depend on it: no need to re-run after."
+}
+
+case_compose_old_2_20_2() {   # one below the edge
+  compose_is 2.20.2
+  doctor err "Compose 2.20.2 is too old: this repo needs 2.20.3 or newer."
+  doctor_lacks "$C_OK"
+}
+
+case_compose_edge_2_20_3() {
+  compose_is 2.20.3
+  doctor ok "$C_OK"; doctor_lacks "too old"; setup_lacks "too old"; next_lacks "too old"
+}
+
+case_compose_minor_up() {   # 2.21.0: a newer minor with a lower patch
+  compose_is 2.21.0
+  doctor ok "$C_OK"; doctor_lacks "too old"
+}
+
+case_compose_major_down() {   # 1.99.99: an older major with a higher minor and patch
+  compose_is 1.99.99
+  doctor err "Compose 1.99.99 is too old: this repo needs 2.20.3 or newer."
+}
+
+case_compose_major_10() {   # numbers, not strings: "10" sorts before "2"
+  compose_is 10.0.0
+  doctor ok "$C_OK"; doctor_lacks "too old"
+}
+
+case_compose_v_prefix() {   # a leading v still reads
+  compose_is v2.19.1
+  doctor err "Compose v2.19.1 is too old: this repo needs 2.20.3 or newer."
+}
+
+case_compose_distro_suffix() {   # Ubuntu's docker-compose-v2 package version
+  compose_is '2.24.6+ds1-0ubuntu1~24.04.1'
+  doctor kv Compose "2.24.6+ds1-0ubuntu1~24.04.1 (plugin)"
+  doctor ok "$C_OK"; doctor_lacks "too old"
+}
+
+case_compose_distro_suffix_old() {   # a suffix doesn't hide an old version
+  compose_is '2.20.2+ds1-0ubuntu1~22.04.1'
+  doctor err "Compose 2.20.2+ds1-0ubuntu1~22.04.1 is too old: this repo needs 2.20.3 or newer."
+}
+
+case_compose_unreadable() {   # no x.y.z at the start: not called old
+  compose_is dev
+  doctor ok "$C_OK"; doctor_lacks "too old"
+}
+
 case_docker_down_no_compose() {   # the plugin check needs no daemon
   docker_is down no-compose
   is DET_COMPOSE_VER ""; is DET_DOCKER_OK 0
