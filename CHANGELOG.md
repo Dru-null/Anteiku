@@ -78,11 +78,14 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   as done and `update.sh` goes on. Every other tar message still fails.
   [docs/backups.md](docs/backups.md#traps)
 - `scripts/backup.sh` can make an encrypted off-site copy: set
-  `OFFSITE_REPO` (a folder: another disk, a mounted NAS share) and
-  `OFFSITE_PASSWORD` in `.env`, and each run also sends that day's
-  backup and your photo files there, with restic from its official
-  image. `scripts/offsite-restore.sh` gets them back. Cloud storage
-  directly is not supported yet. `update.sh`'s backup step skips it.
+  `OFFSITE_REPO` (a folder: another disk, a mounted NAS share; or a
+  bucket on cloud storage that speaks S3, with `OFFSITE_ACCESS_KEY_ID`
+  and `OFFSITE_SECRET_ACCESS_KEY`) and `OFFSITE_PASSWORD` in `.env`, and
+  each run also sends that day's backup and your photo files there,
+  with restic from its official image. `scripts/offsite-restore.sh`
+  gets them back. A wrong key or bucket fails in seconds with restic's
+  own message, not after its 15 minutes of retries. `update.sh`'s
+  backup step skips it.
   [docs/backups.md](docs/backups.md#off-site-copy-encrypted)
 - A `setup.sh` re-run keeps a `.env` value that ends in `=` as it is;
   it used to drop that last `=`.
