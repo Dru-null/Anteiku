@@ -207,6 +207,7 @@ docker_is() { # absent | down | up ; plus: rootless, nvidia-runtime, no-compose
     no-compose) rm -f "$T/compose" ;;
   esac; done
 }
+compose_is() { _frozen compose_is; echo "$1" > "$T/compose"; }   # what 'docker compose version --short' prints (T-012)
 container() { # name port [compose project] [compose service]: a running container
   _frozen container
   printf '%s|%s|%s|0.0.0.0:%s->%s/tcp, [::]:%s->%s/tcp\n' "$1" "${3:-}" "${4:-}" "$2" "$2" "$2" "$2" >> "$T/docker.ps"
