@@ -172,10 +172,17 @@ k_py="$(sed -n 's/^PYTHON_IMAGE="\(.*\)"$/\1/p' scripts/kuma-bootstrap.sh)"
 
 # --help prints the script's comment header and nothing else: no code
 # after it, nothing cut off, and the same from another folder (the
-# scripts cd before they read themselves). Every script with --help.
+# scripts cd before they read themselves). Every script with --help, and
+# every executable one outside lib/ must have it (T-082). One without is
+# named, never run: backup-cron.sh would have run a real backup.
 n=0; c=0
 for f in "${SH[@]}"; do
-  grep -q -- '-h|--help)' "$f" || continue
+  if ! grep -q -- '-h|--help)' "$f"; then
+    case "$f" in lib/*) continue ;; esac
+    [ -x "$f" ] || continue
+    err "--help: $f is executable but has no -h|--help option (not run)"; n=$((n+1)); c=$((c+2))
+    continue
+  fi
   for how in "./$f" "../$f"; do
     c=$((c+1))
     if [ "$how" = "./$f" ]; then dir="$ROOT"; from="the repo"; else dir="$ROOT/lib"; from="lib/"; fi
@@ -191,7 +198,8 @@ for f in "${SH[@]}"; do
   done
 done
 if [ "$c" -eq 0 ]; then err "--help: no script with --help found"
-elif [ "$n" -eq 0 ]; then ok "--help: $((c / 2)) scripts print their header only, from here and from lib/"; fi
+elif [ "$n" -eq 0 ]; then ok "--help: $((c / 2)) scripts print their header only, from here and from lib/"
+else note "--help: $n problem(s) in $((c / 2)) scripts"; fi
 
 # ------------------------------------------------------------ leaks
 h1 "Leaks"
