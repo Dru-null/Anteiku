@@ -86,6 +86,14 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   [docs/backups.md](docs/backups.md#off-site-copy-encrypted)
 - A `setup.sh` re-run keeps a `.env` value that ends in `=` as it is;
   it used to drop that last `=`.
+- `scripts/backup.sh` leaves Immich's database files
+  (`appdata/immich/postgres`) out of the configs archive: the dump
+  beside it is the copy. Copied while the database ran, they might not
+  have started, and they were most of the backup. Without passwordless
+  sudo, a backup with Immich installed failed on them (`Permission
+  denied`); it no longer does. The restore steps still remove them from
+  an older backup.
+  [docs/backups.md](docs/backups.md#what-is-deliberately-excluded)
 
 ---
 
