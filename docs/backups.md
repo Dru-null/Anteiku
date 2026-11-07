@@ -270,19 +270,38 @@ verified.
 
 ### Full disaster recovery
 
-Rebuilding from nothing:
+Rebuilding from nothing, with your local backup and your own copy of
+the photos (see [Your photos](#your-photos)). Tested as written, on the
+pinned Immich (v3.3.5): the install folder and every container deleted,
+then restored with these steps; same login, same album, same photos
+(byte for byte), thumbnails back.
 
 ```bash
-# 1. install Docker, clone this repo
-# 2. restore the stack (brings back .env with all your secrets)
-tar xzf /mnt/backup/2026-10-28/stack.tar.gz -C anteiku
-# 3. restore configs
-tar xzf /mnt/backup/2026-10-28/appdata-configs.tar.gz -C anteiku/appdata
-# 4. put the photo files back (from your own copy, see "Your photos")
-rsync -a /mnt/backup/photos/ /path/to/PHOTOS_LOCATION/
-# 5. restore databases (below), then bring everything up
-cd anteiku && docker compose up -d
+# 1. Install Docker, clone this repo to the same path as before (.env
+#    holds absolute paths), and run the rest from inside that folder.
+# 2. The backup to restore: a dated folder in your BACKUP_DEST.
+B=/mnt/backup/2026-10-28
+# 3. The stack (brings back .env) and the configs; root keeps their owners:
+tar xzf $B/stack.tar.gz
+A="$(sed -n 's/^APPDATA=//p' .env)"; P="$(sed -n 's/^PHOTOS_LOCATION=//p' .env)"
+mkdir -p "$A"
+sudo tar xzf $B/appdata-configs.tar.gz -C "$A"
+# 4. Immich only: start its database empty and load the dump. (A backup
+#    from an older backup.sh also holds its live files: rm drops them.)
+sudo rm -rf "$A/immich/postgres"
+docker compose up -d immich-db
+until docker compose exec -T immich-db pg_isready -h localhost -U immich -q; do sleep 2; done
+gzip -dc $B/immich-db.sql.gz | docker compose exec -T immich-db psql -U immich -d immich -q
+# 5. The photo files from your own copy, then everything:
+rsync -a /mnt/backup/photos/ "$P/"
+docker compose up -d
 ```
+
+- Step 4 prints a few `set_config` and `setval` results. An `ERROR`
+  line means the restore is incomplete.
+- No Immich? Skip step 4 and the `rsync`.
+- The same steps restore the [off-site copy](#restore-from-the-off-site-copy),
+  with `B` and the photos taken from what `offsite-restore.sh` brought back.
 
 ### Restoring a database (Immich)
 

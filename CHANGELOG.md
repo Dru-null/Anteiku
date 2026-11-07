@@ -94,6 +94,13 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   denied`); it no longer does. The restore steps still remove them from
   an older backup.
   [docs/backups.md](docs/backups.md#what-is-deliberately-excluded)
+- docs/backups.md "Full disaster recovery" is rewritten and tested as
+  written. It extracted the configs into `appdata/`, which a fresh clone
+  doesn't have, without root, and restored Immich's database into a
+  container nothing had started yet: Immich came back empty. It now
+  follows the off-site restore's order, with your local backup and your
+  own photo copy.
+  [docs/backups.md](docs/backups.md#full-disaster-recovery)
 
 ---
 
