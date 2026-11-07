@@ -126,6 +126,18 @@ answering on its host port, qBittorrent's login included.
 | Install hints | Mocked | `tools_debian`, `tools_debian_plain`, `tools_ubuntu_derivative`, `tools_fedora`, `tools_rocky`, `tools_arch`, `tools_manjaro`, `tools_other_distro`, `tools_no_os_release`, `tools_update_schedule_arch`, `tools_next_no_crontab_fedora` | `apt`, `dnf` or `pacman` from `/etc/os-release` (`ID`, `ID_LIKE`); any other distro gets the tool names only. Package names checked against each distro's package search, 2026-11-06. On Fedora and Arch the cron hint also starts the service |
 | User and group ids other than 1000 | Virtualized (1500:1500); Mocked | 2026-11-07, after `2026.10.1`; `user_ids` | `.env` gets the user's ids, every folder `setup.sh` makes is theirs, and Sonarr and qBittorrent write as them. Seerr runs as 1000 whatever the ids: without the `chown` `setup.sh` prints, it fails to start and restarts over and over (`EACCES`); with it, it starts. A media root owned by root: both scripts warn, `setup.sh` gives the `chown` |
 
+## Service paths not run
+
+Each of these needs something the test machines don't have.
+
+| Path | Level | Notes |
+|---|---|---|
+| Pi-hole answering DNS on port 53 | Untested | Run beside another DNS server, so on a moved port. Port 53 itself, and clients using it, not run |
+| Let's Encrypt certificates through Nginx Proxy Manager | Untested | Needs a public domain |
+| Vaultwarden through Tailscale Serve | Untested | |
+| Uptime Kuma alerts reaching a phone | Untested | You add the notification channel yourself ([monitoring](../stacks/monitoring.md)). The `backup-cron.sh` notification through ntfy is checked; Kuma's own are not |
+| Uptime Kuma Docker-type monitors | Untested | The generated monitors are HTTP, plus one ping for the internet line |
+
 ---
 
 ## Where the scripts disagree with this page
