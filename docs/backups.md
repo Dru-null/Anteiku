@@ -24,9 +24,12 @@ your media library — it is enormous and you can get it again. Backing
 it up is how people conclude backups are impractical and then do none.
 
 `scripts/backup.sh` covers the first two rows, plus a dump of every
-database. It does **not** copy your photo files (`PHOTOS_LOCATION`):
-they are large, and a fresh 200 GB archive each run fills any disk.
-Copy them yourself, with one command; see [Your photos](#your-photos).
+database. Its local backup does **not** copy your photo files
+(`PHOTOS_LOCATION`): they are large, and a fresh 200 GB archive each
+run fills any disk. Copy them yourself, with one command (see
+[Your photos](#your-photos)), or let the
+[encrypted off-site copy](#off-site-copy-encrypted) take them: it only
+sends photos it doesn't have yet.
 
 ---
 
@@ -82,6 +85,92 @@ rsync -a /path/to/PHOTOS_LOCATION/ /mnt/backup/photos/
 
 Ubuntu's standard install includes `rsync`; elsewhere, install it from
 your package manager.
+
+---
+
+## Off-site copy (encrypted)
+
+Optional. Set it up and `backup.sh` ends each run by sending that
+day's backup, and your photos, to a second place, **encrypted**:
+[restic](https://restic.net), run from its official image (pinned, so
+nothing is installed on your machine). That place is a folder: another
+disk, a USB disk you take elsewhere, or a NAS share mounted on this
+machine. Cloud storage directly (S3, B2, SFTP) is not supported yet.
+
+Add to `.env` (`setup.sh` keeps these lines when you re-run it):
+
+```bash
+OFFSITE_REPO=/mnt/usb/anteiku-offsite
+OFFSITE_PASSWORD=          # paste the output of: head -c 32 /dev/urandom | base64
+# OFFSITE_PHOTOS=no        # leave your photos out (default: in)
+```
+
+The first run creates the repository there. Then:
+
+- **What goes:** `stack.tar.gz` (your `.env`), the configs, the
+  database dumps and your photo files, as one snapshot per run. Kept: 7
+  daily, 5 weekly, 12 monthly; older ones are removed.
+- **Encrypted:** nothing in that folder can be read without
+  `OFFSITE_PASSWORD`. The local backup is not encrypted; keep it on a
+  disk only you use.
+- `./scripts/backup.sh --local-only` skips the off-site copy.
+  `update.sh` always skips it: an update needs the local backup, not an
+  upload.
+
+### Lose the password, lose the copy
+
+There is no recovery: not by you, not by restic, not by anyone. The
+password is also in `.env`, but `.env` is *inside* the copy, locked
+with that same password, and the machine holding the other `.env` is
+the one you are recovering from. Keep the password somewhere else too:
+a password manager, or on paper with your important documents.
+
+### Size
+
+Measured on a small install (Immich with three photos): a 96.3 MiB
+local backup added 96.4 MiB off-site; a second run straight after, its
+local backup 98.5 MiB, added 98.5 MiB. The backup's archives are
+compressed, so restic can't find their unchanged parts: **every run
+adds about the size of your local backup**. Photos are stored once; a
+run only adds new ones.
+
+So size the off-site disk for your photos, plus up to 24 snapshots
+(7 + 5 + 12, fewer where they overlap) of your local backup. A
+backup.sh run prints the size of the local one.
+
+### Restore from the off-site copy
+
+Tested as written, on the pinned Immich (v3.3.5): everything deleted
+but the off-site folder, then restored with these steps; same login,
+same album, same photos (byte for byte), thumbnails back.
+
+```bash
+# 1. Install Docker, clone this repo to the same path as before (.env
+#    holds absolute paths), and run the rest from inside that folder.
+# 2. The newest off-site copy, into an empty folder (asks for the password):
+OFFSITE_REPO=/mnt/usb/anteiku-offsite ./scripts/offsite-restore.sh ~/restore
+B=~/restore/backup
+# 3. The stack (brings back .env) and the configs; root keeps their owners:
+tar xzf $B/stack.tar.gz
+A="$(sed -n 's/^APPDATA=//p' .env)"; P="$(sed -n 's/^PHOTOS_LOCATION=//p' .env)"
+mkdir -p "$A"
+sudo tar xzf $B/appdata-configs.tar.gz -C "$A"
+# 4. Immich only: its database files were copied while it ran; the dump
+#    is the real copy. Start it empty and load the dump:
+sudo rm -rf "$A/immich/postgres"
+docker compose up -d immich-db
+until docker compose exec -T immich-db pg_isready -h localhost -U immich -q; do sleep 2; done
+gzip -dc $B/immich-db.sql.gz | docker compose exec -T immich-db psql -U immich -d immich -q
+# 5. The photo files, where .env says, then everything:
+rsync -a ~/restore/photos/ "$P/"
+docker compose up -d
+```
+
+- `--list` shows the snapshots; `--snapshot=<ID>` restores an older one.
+- Step 4 prints a few `set_config` and `setval` results. An `ERROR`
+  line means the restore is incomplete.
+- `~/restore` holds every password (`stack.tar.gz`). Delete it when
+  you are done.
 
 ---
 
@@ -293,7 +382,7 @@ that is irreplaceable data, not media. Copy it somewhere separately.
 
 **`.env` contains every secret.** `stack.tar.gz` is mode 600 for that
 reason. Think before putting it on a shared drive, and encrypt it before
-any cloud.
+it leaves the house: the [off-site copy](#off-site-copy-encrypted) does.
 
 **Live databases.** `backup.sh` archives `appdata/` while your
 services run. Most of them keep their data in a SQLite file they can

@@ -236,7 +236,9 @@ Nothing was changed."
     note "Or, deliberately, update without one:  ./update.sh --no-backup"
     stopped "no BACKUP_DEST for the backup"; return 1
   else
-    ./scripts/backup.sh || { stopped "the backup failed (output above)"; return 1; }
+    # The way back needs the local copy; an off-site upload (photos can be
+    # hundreds of GB) would hold the update up, and a network fault stop it.
+    ./scripts/backup.sh --local-only || { stopped "the backup failed (output above)"; return 1; }
     BACKUP_AT="$BACKUP_DEST/$(date +%F)"
   fi
 
