@@ -46,7 +46,7 @@ What it produces, in a dated directory:
 
 | File | Contents |
 |---|---|
-| `appdata-configs.tar.gz` | every installed service's config, caches excluded |
+| `appdata-configs.tar.gz` | every installed service's config, caches and Immich's database files excluded |
 | `stack.tar.gz` | the install folder (compose files, `.env`, scripts, logs) without `appdata`, media, photos or the backups; mode 600 |
 | `<service>-db.sql.gz` | a proper dump per database |
 
@@ -127,9 +127,9 @@ a password manager, or on paper with your important documents.
 
 ### Size
 
-Measured on a small install (Immich with three photos): a 96.3 MiB
-local backup added 96.4 MiB off-site; a second run straight after, its
-local backup 98.5 MiB, added 98.5 MiB. The backup's archives are
+Measured on a small install (Immich with three photos): a 17.1 MiB
+local backup added 17.1 MiB off-site; a second run straight after, its
+local backup 18.1 MiB, added 18.1 MiB. The backup's archives are
 compressed, so restic can't find their unchanged parts: **every run
 adds about the size of your local backup**. Photos are stored once; a
 run only adds new ones.
@@ -155,8 +155,8 @@ tar xzf $B/stack.tar.gz
 A="$(sed -n 's/^APPDATA=//p' .env)"; P="$(sed -n 's/^PHOTOS_LOCATION=//p' .env)"
 mkdir -p "$A"
 sudo tar xzf $B/appdata-configs.tar.gz -C "$A"
-# 4. Immich only: its database files were copied while it ran; the dump
-#    is the real copy. Start it empty and load the dump:
+# 4. Immich only: start its database empty and load the dump. (A backup
+#    from an older backup.sh also holds its live files: rm drops them.)
 sudo rm -rf "$A/immich/postgres"
 docker compose up -d immich-db
 until docker compose exec -T immich-db pg_isready -h localhost -U immich -q; do sleep 2; done
@@ -365,6 +365,11 @@ rebuild themselves:
 
 On a real system this is the difference between a 2.4 GB nightly and one
 well under 1 GB. Across 30 dailies, 72 GB versus 20 GB.
+
+Also `immich/postgres`, Immich's database files: a copy taken while
+the database runs may not start, and the dump (`immich-db.sql.gz`)
+already holds everything in them. A restore loads the dump into a fresh
+database.
 
 Folders of their own, when they sit inside the install folder (the
 defaults put `./media` and `./photos` there): `MEDIA_ROOT`,

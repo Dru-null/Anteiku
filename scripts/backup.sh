@@ -152,6 +152,8 @@ immich|immich-db|pg|${IMMICH_DB_USER:-immich}|${IMMICH_DB_NAME:-immich}
 # ============================================================
 #  Caches and regenerable data — excluded on purpose.
 #  These rebuild themselves and dominate the archive size.
+#  So do a running database's own files: copied mid-write they may
+#  not start, and its dump (DATABASES) is the real copy.
 # ============================================================
 EXCLUDES=(
   --exclude=jellyfin/config/data/metadata     # re-fetchable artwork, can be GBs
@@ -159,6 +161,7 @@ EXCLUDES=(
   --exclude=jellyfin/config/log
   --exclude=jellyfin/transcode                # scratch space
   --exclude=immich/model-cache                # re-downloadable ML models
+  --exclude=immich/postgres                   # Immich's database files: dumped instead
   --exclude=calibre-web/config/processed_books # re-convertible copies, can be GBs
   --exclude=calibre-web/config/thumbnails
   --exclude='*/logs/*.log'
