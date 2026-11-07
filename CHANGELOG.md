@@ -77,6 +77,15 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   often a database's `-journal`). It names the files; the backup counts
   as done and `update.sh` goes on. Every other tar message still fails.
   [docs/backups.md](docs/backups.md#traps)
+- `scripts/backup.sh` can make an encrypted off-site copy: set
+  `OFFSITE_REPO` (a folder: another disk, a mounted NAS share) and
+  `OFFSITE_PASSWORD` in `.env`, and each run also sends that day's
+  backup and your photo files there, with restic from its official
+  image. `scripts/offsite-restore.sh` gets them back. Cloud storage
+  directly is not supported yet. `update.sh`'s backup step skips it.
+  [docs/backups.md](docs/backups.md#off-site-copy-encrypted)
+- A `setup.sh` re-run keeps a `.env` value that ends in `=` as it is;
+  it used to drop that last `=`.
 
 ---
 

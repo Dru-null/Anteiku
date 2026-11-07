@@ -432,8 +432,20 @@ if [ -f "$S/.env" ]; then
   # A version override is how users roll back; a re-run must keep it.
   echo "SONARR_VERSION=0.0.0-check" >> "$S/.env"
   sed -i 's/^UPDATE_MODE=.*/UPDATE_MODE=off/' "$S/.env"
+  # The off-site keys are the user's (T-011): kept as they are, a base64
+  # password's trailing "=" too, and the password never shown. Checked by
+  # value: SECRET_KEYS, which the leak check reads, comes from setup.sh.
+  OFF_DIR="$WORK/offsite-check"; OFF_PW="chk$(od -An -N9 -tx1 /dev/urandom | tr -d ' \n')="
+  printf 'OFFSITE_REPO=%s\nOFFSITE_PASSWORD=%s\nOFFSITE_PHOTOS=yes\n' "$OFF_DIR" "$OFF_PW" >> "$S/.env"
   run_setup yes3 --yes; rc=$?
   step "re-run, + every other service" yes3 "$rc"
+  miss=""
+  for l in "OFFSITE_REPO=$OFF_DIR" "OFFSITE_PASSWORD=$OFF_PW" "OFFSITE_PHOTOS=yes"; do
+    grep -qxF -- "$l" "$S/.env" || miss="$miss ${l%%=*}"
+  done
+  if [ -n "$miss" ]; then err "re-run did not keep the off-site keys as they were:$miss"
+  elif grep -qF -- "$OFF_PW" "$WORK/yes3.log"; then err "re-run printed OFFSITE_PASSWORD"
+  else ok "re-run kept the off-site keys (a password ending in = too), password not shown"; fi
   if ! grep -qx 'SONARR_VERSION=0.0.0-check' "$S/.env"; then err "re-run dropped a version override from .env"
   elif ! grep -q 'held at a version override: SONARR_VERSION' "$WORK/yes3.log"; then err "re-run did not warn about the version override"
   else ok "re-run kept the version override and said so"; fi
@@ -572,6 +584,25 @@ else
        "backup.sh --dry-run: media and photos not named as left out of the stack archive" \
     && ok "backup.sh --dry-run: plan counts $n_prof services, leaves out ./media and ./photos"
   [ -e "$BK_DEST" ] && err "backup.sh --dry-run created its destination"
+  # The off-site copy (T-011), planned from the keys the setup.sh section
+  # left in .env; nothing runs restic here.
+  [ "$rc" -eq 0 ] && has_line bk-dry "^  off-site:       $OFF_DIR, encrypted (restic/restic:" \
+       "backup.sh --dry-run: no off-site line for OFFSITE_REPO" \
+    && has_line bk-dry '^  off-site only:  .*/photos (your photo files)$' \
+       "backup.sh --dry-run: photos not planned for the off-site copy" \
+    && ok "backup.sh --dry-run: plans the off-site copy, photos in it"
+  [ -e "$OFF_DIR" ] && err "backup.sh --dry-run created the off-site folder"
+  run_helper bk-local ./scripts/backup.sh --dry-run --local-only "$BK_DEST"; rc=$?
+  step "backup.sh --dry-run --local-only" bk-local "$rc"
+  [ "$rc" -eq 0 ] && has_line bk-local '^  off-site:       skipped (--local-only)$' \
+       "backup.sh --local-only: the plan does not say the off-site copy is skipped" \
+    && ok "backup.sh --local-only: off-site copy skipped"
+  sed -i 's#^OFFSITE_REPO=.*#OFFSITE_REPO=s3:https://s3.example.com/bucket#' "$S/.env"
+  run_helper bk-url ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
+  if [ "$rc" -ne 1 ] || ! grep -q 'OFFSITE_REPO must be a folder path' "$WORK/bk-url.log"; then
+    err "backup.sh: an s3: OFFSITE_REPO was not refused (exit $rc)"; tail_of "$WORK/bk-url.log"
+  else ok "backup.sh: refuses an OFFSITE_REPO that is not a folder"; fi
+  sed -i "s#^OFFSITE_REPO=.*#OFFSITE_REPO=$OFF_DIR#" "$S/.env"
 
   if ! have python3; then
     note "kuma-bootstrap.sh and kuma-monitors.py need python3 on the host: not run"
@@ -618,6 +649,8 @@ print(len(rows))
   # inside the folder, a file in each, kept out of stack.tar.gz. Nothing
   # runs here, so Immich (the one database) is left out of this .env.
   cp "$S/.env" "$WORK/env-helpers"
+  # A real off-site run needs Docker and restic's image: not here.
+  sed -i '/^OFFSITE_/d' "$S/.env"
   sed -i "s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$(tr ',' '\n' <<< "$PROF" | grep -vx -e immich -e immich-ml | paste -sd,)/" "$S/.env"
   med="$(sed -n 's/^MEDIA_ROOT=//p' "$S/.env")"; pho="$(sed -n 's/^PHOTOS_LOCATION=//p' "$S/.env")"
   if [ "$med" != "$S/media" ] || [ "$pho" != "$S/photos" ]; then

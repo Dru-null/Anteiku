@@ -57,12 +57,18 @@ banner "anteiku $S_DOT setup" "pick your services, write your config"
 # generated fresh - NEVER from your shell environment. A password exported
 # in ~/.bashrc for some other tool (NTFY_PASS is a common one) would
 # otherwise be silently reused here, and printed in the preview below.
-SECRET_KEYS="PIHOLE_PASSWORD NTFY_PASS KUMA_PASSWORD IMMICH_DB_PASSWORD VAULTWARDEN_ADMIN_TOKEN"
-for k in $SECRET_KEYS; do unset "$k"; done
+# The off-site keys (docs/backups.md) are yours, never generated: they
+# are kept from .env as they are, and hidden like the rest.
+SECRET_KEYS="PIHOLE_PASSWORD NTFY_PASS KUMA_PASSWORD IMMICH_DB_PASSWORD VAULTWARDEN_ADMIN_TOKEN OFFSITE_PASSWORD"
+OFFSITE_KEYS="OFFSITE_REPO OFFSITE_PASSWORD OFFSITE_PHOTOS"
+for k in $SECRET_KEYS $OFFSITE_KEYS; do unset "$k"; done
 
 PREV_PROFILES=""
 if [ -r "$ENV_FILE" ]; then
-  while IFS='=' read -r k v; do
+  # Split on the first = only: `IFS='=' read k v` drops a trailing "=",
+  # and base64 values (an OFFSITE_PASSWORD) end in one.
+  while IFS= read -r line; do
+    k="${line%%=*}"; v=""; [ "$k" = "$line" ] || v="${line#*=}"
     case "$k" in
       ''|'#'*|*' '*) continue ;;
       PORT_*)            PREV_PORTS="${PREV_PORTS:-} $k=$v" ;;
@@ -853,8 +859,8 @@ if _sel_has immich; then
   [ "$DRY_RUN" -eq 1 ] || _mk "$PHOTOS_DEF"
   kv "Photo library" "$PHOTOS_DEF"
   note "Kept separate from your media library on purpose: photos are"
-  note "irreplaceable, films are not. Back this one up: backup.sh doesn't"
-  note "copy it (docs/backups.md, \"Your photos\")."
+  note "irreplaceable, films are not. Back this one up: backup.sh's local"
+  note "copy leaves it out; its off-site copy can take it (docs/backups.md)."
 
   P_FREE="$(free_gb "$(existing_dir "$PHOTOS_DEF")" 2>/dev/null || echo 0)"
   if [ "${P_FREE:-0}" -lt 20 ]; then
@@ -1124,6 +1130,15 @@ W_FAIL=0; trap 'W_FAIL=1' ERR
     echo "# BACKUP_DEST=/mnt/backup-drive   <- set this, then backups need no argument"
   fi
   echo "BACKUP_RETAIN_DAYS=30"
+  echo "# Encrypted off-site copy, made by backup.sh after the local one."
+  if [ -n "${OFFSITE_REPO:-}" ]; then
+    for k in $OFFSITE_KEYS; do
+      if [ -n "${!k:-}" ]; then echo "$k=${!k}"; fi
+    done
+  else
+    echo "# OFFSITE_REPO=/mnt/other-disk/anteiku-offsite   <- see docs/backups.md"
+    echo "# OFFSITE_PASSWORD=   <- long, random, and kept OFF this machine too"
+  fi
   echo "# Optional push notifications for scheduled backups (ntfy)."
   echo "# NTFY_URL=http://localhost:8095"
   echo "# NTFY_TOPIC=homelab"

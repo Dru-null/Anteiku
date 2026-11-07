@@ -13,9 +13,10 @@ testdata/
 # Generated per-machine by setup.sh.
 ports.md
 
-# Local backup and update logs; update.sh state.
+# Local backup and update logs; update.sh state; restic's cache.
 backup-logs/
 update-logs/
+.offsite-cache/
 
 # Python bytecode.
 __pycache__/
