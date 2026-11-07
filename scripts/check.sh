@@ -201,6 +201,51 @@ if [ "$c" -eq 0 ]; then err "--help: no script with --help found"
 elif [ "$n" -eq 0 ]; then ok "--help: $((c / 2)) scripts print their header only, from here and from lib/"
 else note "--help: $n problem(s) in $((c / 2)) scripts"; fi
 
+# An option a script doesn't know is refused before any work (T-085): in
+# the option loop that holds -h|--help, the first arm an unknown option
+# matches must exit 2 with its message on stderr. Read, never run: a
+# script whose refusal is missing would do its work (backup-cron.sh: a
+# backup and a notification). The --help runs above show the loop comes
+# before the work. One arm per line, ending ;;, or it can't be read.
+n=0; c=0
+for f in "${SH[@]}"; do
+  grep -q -- '-h|--help)' "$f" || continue
+  c=$((c+1))
+  loop="$(awk '/case "\$a" in$/ { buf = ""; on = 1 }
+    on { buf = buf $0 "\n" }
+    on && /^[[:space:]]*esac/ { if (buf ~ /-h\|--help\)/) { printf "%s", buf; exit } on = 0 }' "$f")"
+  arms=(); unread=0
+  [ -n "$loop" ] || unread=1
+  while IFS= read -r line; do
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    if [[ $line =~ ^[[:space:]]*([^[:space:]()]+)\)[[:space:]]+(.*\;\;)[[:space:]]*$ ]] \
+       && [[ ${BASH_REMATCH[1]} != *[\"\'\$\\]* ]]; then
+      arms+=("${BASH_REMATCH[1]}"$'\t'"${BASH_REMATCH[2]}")
+    else unread=1; fi
+  done < <(sed '1d;$d' <<< "$loop")
+  if [ "$unread" -eq 1 ]; then
+    err "unknown options: $f: can't read its option loop (one arm per line, ending ;;)"; n=$((n+1)); continue
+  fi
+  for p in --no-such-option -Z; do
+    hit=""
+    for arm in "${arms[@]}"; do
+      IFS='|' read -ra alts <<< "${arm%%$'\t'*}"
+      for alt in "${alts[@]}"; do
+        # shellcheck disable=SC2053  # $alt is a glob: the script's own case pattern
+        if [[ $p == $alt ]]; then hit="$arm"; break 2; fi
+      done
+    done
+    if [ -z "$hit" ]; then
+      err "unknown options: $f runs on with $p: no arm matches it"; n=$((n+1))
+    elif [[ ${hit#*$'\t'} != *'>&2'*'exit 2'* ]]; then
+      err "unknown options: $f runs on with $p: arm '${hit%%$'\t'*})' doesn't exit 2 with a message on stderr"; n=$((n+1))
+    fi
+  done
+done
+if [ "$c" -eq 0 ]; then err "unknown options: no script with an option loop found"
+elif [ "$n" -eq 0 ]; then ok "unknown options: $c scripts refuse --no-such-option and -Z (exit 2, stderr; read, not run)"
+else note "unknown options: $n problem(s) in $c scripts"; fi
+
 # ------------------------------------------------------------ leaks
 h1 "Leaks"
 # Built-in: things that are never right in a public repo. This file
