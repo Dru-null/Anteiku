@@ -170,11 +170,46 @@ else ok "CHANGELOG: $n_rel release(s), each with Action needed; update.sh reads 
 k_py="$(sed -n 's/^PYTHON_IMAGE="\(.*\)"$/\1/p' scripts/kuma-bootstrap.sh)"
 [ "$k_py" = "$PYTHON_IMAGE" ] || err "kuma-bootstrap.sh and check.sh use different Python images (${k_py:-none} vs $PYTHON_IMAGE)"
 
+# A script's option loop, read and never run (T-085, T-086): the
+# case "$a" in ... esac that holds -h|--help, one arm per line ending ;;.
+# opt_loop <file> fills ARMS ("pattern<TAB>body" each); returns 1 if the
+# loop is missing or can't be read. first_arm <option> sets HIT to the
+# first arm the option matches (bash's own [[ == ]] on each | alternative,
+# as case does), or "" if none.
+opt_loop() {
+  local loop line
+  ARMS=()
+  loop="$(awk '/case "\$a" in$/ { buf = ""; on = 1 }
+    on { buf = buf $0 "\n" }
+    on && /^[[:space:]]*esac/ { if (buf ~ /-h\|--help\)/) { printf "%s", buf; exit } on = 0 }' "$1")"
+  [ -n "$loop" ] || return 1
+  while IFS= read -r line; do
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    if [[ $line =~ ^[[:space:]]*([^[:space:]()]+)\)[[:space:]]+(.*\;\;)[[:space:]]*$ ]] \
+       && [[ ${BASH_REMATCH[1]} != *[\"\'\$\\]* ]]; then
+      ARMS+=("${BASH_REMATCH[1]}"$'\t'"${BASH_REMATCH[2]}")
+    else return 1; fi
+  done < <(sed '1d;$d' <<< "$loop")
+}
+first_arm() {
+  local arm alt alts
+  HIT=""
+  for arm in "${ARMS[@]}"; do
+    IFS='|' read -ra alts <<< "${arm%%$'\t'*}"
+    for alt in "${alts[@]}"; do
+      # shellcheck disable=SC2053  # $alt is a glob: the script's own case pattern
+      if [[ $1 == $alt ]]; then HIT="$arm"; return; fi
+    done
+  done
+}
+
 # --help prints the script's comment header and nothing else: no code
 # after it, nothing cut off, and the same from another folder (the
 # scripts cd before they read themselves). Every script with --help, and
 # every executable one outside lib/ must have it (T-082). One without is
-# named, never run: backup-cron.sh would have run a real backup.
+# named, never run: backup-cron.sh would have run a real backup. Nor is
+# one whose loop can't be read, or where an earlier arm takes --help or
+# -h (T-086: `--*) ;;` above it and the script ran for real).
 n=0; c=0
 for f in "${SH[@]}"; do
   if ! grep -q -- '-h|--help)' "$f"; then
@@ -182,6 +217,20 @@ for f in "${SH[@]}"; do
     [ -x "$f" ] || continue
     err "--help: $f is executable but has no -h|--help option (not run)"; n=$((n+1)); c=$((c+2))
     continue
+  fi
+  if ! opt_loop "$f"; then
+    err "--help: $f: can't read its option loop (not run)"; n=$((n+1)); c=$((c+2)); continue
+  fi
+  shadow=""
+  for p in --help -h; do
+    first_arm "$p"
+    if [ -z "$HIT" ]; then shadow="no arm matches $p"; break; fi
+    if [ "${HIT%%$'\t'*}" != "-h|--help" ]; then
+      shadow="$p first matches '${HIT%%$'\t'*})', not the -h|--help arm"; break
+    fi
+  done
+  if [ -n "$shadow" ]; then
+    err "--help: $f: $shadow (not run)"; n=$((n+1)); c=$((c+2)); continue
   fi
   for how in "./$f" "../$f"; do
     c=$((c+1))
@@ -211,34 +260,15 @@ n=0; c=0
 for f in "${SH[@]}"; do
   grep -q -- '-h|--help)' "$f" || continue
   c=$((c+1))
-  loop="$(awk '/case "\$a" in$/ { buf = ""; on = 1 }
-    on { buf = buf $0 "\n" }
-    on && /^[[:space:]]*esac/ { if (buf ~ /-h\|--help\)/) { printf "%s", buf; exit } on = 0 }' "$f")"
-  arms=(); unread=0
-  [ -n "$loop" ] || unread=1
-  while IFS= read -r line; do
-    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
-    if [[ $line =~ ^[[:space:]]*([^[:space:]()]+)\)[[:space:]]+(.*\;\;)[[:space:]]*$ ]] \
-       && [[ ${BASH_REMATCH[1]} != *[\"\'\$\\]* ]]; then
-      arms+=("${BASH_REMATCH[1]}"$'\t'"${BASH_REMATCH[2]}")
-    else unread=1; fi
-  done < <(sed '1d;$d' <<< "$loop")
-  if [ "$unread" -eq 1 ]; then
+  if ! opt_loop "$f"; then
     err "unknown options: $f: can't read its option loop (one arm per line, ending ;;)"; n=$((n+1)); continue
   fi
   for p in --no-such-option -Z; do
-    hit=""
-    for arm in "${arms[@]}"; do
-      IFS='|' read -ra alts <<< "${arm%%$'\t'*}"
-      for alt in "${alts[@]}"; do
-        # shellcheck disable=SC2053  # $alt is a glob: the script's own case pattern
-        if [[ $p == $alt ]]; then hit="$arm"; break 2; fi
-      done
-    done
-    if [ -z "$hit" ]; then
+    first_arm "$p"
+    if [ -z "$HIT" ]; then
       err "unknown options: $f runs on with $p: no arm matches it"; n=$((n+1))
-    elif [[ ${hit#*$'\t'} != *'>&2'*'exit 2'* ]]; then
-      err "unknown options: $f runs on with $p: arm '${hit%%$'\t'*})' doesn't exit 2 with a message on stderr"; n=$((n+1))
+    elif [[ ${HIT#*$'\t'} != *'>&2'*'exit 2'* ]]; then
+      err "unknown options: $f runs on with $p: arm '${HIT%%$'\t'*})' doesn't exit 2 with a message on stderr"; n=$((n+1))
     fi
   done
 done
