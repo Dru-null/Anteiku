@@ -146,10 +146,22 @@ locked_dir()   {
   if ! { mkdir -p "$1" && chmod 555 "$1"; }; then _fail "locked_dir: could not make $1"; return 0; fi
   [ -w "$1" ] && _fail "locked_dir: $1 is still writable (running as root?)"; return 0
 }
-# ports_md_blocked: setup_real's copy gets a folder named ports.md, so the
-# write fails there and nowhere else (T-080). Never /dev/full: a link out
-# of the case's dir is a write the host might take.
-ports_md_blocked() { _frozen ports_md_blocked; : > "$T/ports.blocked"; }
+# ports_md_blocked [readonly]: setup_real's copy gets a folder named
+# ports.md (T-080), or with readonly a mode-444 ports.md file (T-083), so
+# the write fails there and nowhere else. Never /dev/full: a link out of
+# the case's dir is a write the host might take.
+ports_md_blocked() {
+  _frozen ports_md_blocked
+  case "${1:-folder}" in folder|readonly) echo "${1:-folder}" > "$T/ports.blocked" ;;
+    *) _fail "ports_md_blocked: unknown kind '$1'" ;; esac
+}
+# file_limit <KiB>: setup_real's setup.sh runs under ulimit -f with SIGXFSZ
+# ignored, so a write past the limit fails with "File too large" (EFBIG):
+# a real failed write, with no mount and no /dev/full (T-083).
+# tmp_locked: setup_real's TMPDIR is an empty mode-555 folder, so mktemp
+# fails before anything is written (T-083).
+tmp_locked()   { _frozen tmp_locked; : > "$T/tmp.locked"; }
+file_limit()   { _frozen file_limit; [[ "${1:-}" =~ ^[1-9][0-9]*$ ]] || { _fail "file_limit: KiB expected, got '${1:-}'"; return 0; }; echo "$1" > "$T/file.limit"; }
 install_env()  { # stdin: more .env lines for the install (after 'installed')
   _frozen install_env; [ -d "$FX/install" ] || { _fail "install_env: needs the 'installed' fixture"; return 0; }
   cat >> "$FX/install/.env"
@@ -409,15 +421,28 @@ _run() { # probe | doctor | setup | setup_real | update_check | update | update_
     # .env, as a user re-runs. The checkout must not change.
     setup_real)
       mkdir -p "$FX/real" "$FX/tmp"
+      if [ -f "$T/tmp.locked" ]; then
+        chmod 555 "$FX/tmp" || _fail "tmp_locked: could not lock tmp/"
+        [ -w "$FX/tmp" ] && _fail "tmp_locked: tmp/ is still writable (running as root?)"
+      fi
       tar -C "$REPO" --exclude=./.git --exclude=./.env -cf - . | tar -C "$FX/real" -xf - \
         || _fail "setup_real: copy failed"
       [ -f "$FX/prev.env" ] && cp "$FX/prev.env" "$FX/real/.env"
-      if [ -f "$T/ports.blocked" ] && ! mkdir "$FX/real/ports.md"; then _fail "ports_md_blocked: could not make the folder"; fi
-      local before; before="$(ls -A "$REPO")"
+      case "$(cat "$T/ports.blocked" 2>/dev/null)" in
+        folder) mkdir "$FX/real/ports.md" || _fail "ports_md_blocked: could not make the folder" ;;
+        readonly)
+          if ! { : > "$FX/real/ports.md" && chmod 444 "$FX/real/ports.md"; }; then _fail "ports_md_blocked: could not make the file"
+          elif [ -w "$FX/real/ports.md" ]; then _fail "ports_md_blocked: ports.md is still writable (running as root?)"; fi ;;
+      esac
+      local before lim=(); before="$(ls -A "$REPO")"
+      # The limit is setup.sh's alone: its output goes through a pipe to a
+      # cat outside it (a file there would be cut off at the limit too).
+      # shellcheck disable=SC2016  # $1 and $@ are the inner bash's
+      [ -f "$T/file.limit" ] && lim=(bash -c 'trap "" XFSZ; { ulimit -f "$1" || exit 99; shift; exec "$@"; } 2>&1 | cat; exit "${PIPESTATUS[0]}"' file_limit "$(cat "$T/file.limit")")
       (cd "$FX/real" && _env TMPDIR="$FX/tmp" STACK_PREFIX=fx- COMPOSE_PROJECT_NAME=anteiku-fx DOCKER_NETWORK=anteiku-fx \
          APPDATA=./appdata MEDIA_ROOT=./media PHOTOS_LOCATION=./photos "${SUENV[@]}" \
          ${OVR:+"GPU_PROFILE_OVERRIDE=$OVR"} \
-         bash setup.sh --yes) < /dev/null > "$FX/setup_real" 2>&1; rc=$?
+         "${lim[@]}" bash setup.sh --yes) < /dev/null > "$FX/setup_real" 2>&1; rc=$?
       _check "setup_real leaves the checkout alone" "$before" "$(ls -A "$REPO")"
       _check "setup_real leaves nothing in tmp/" "" "$(ls -A "$FX/tmp")"
       awk '/^-- / {f = /^-- Next /} f' "$FX/setup_real" > "$FX/next"   # that section only
