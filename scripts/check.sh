@@ -436,16 +436,24 @@ if [ -f "$S/.env" ]; then
   # password's trailing "=" too, and the password never shown. Checked by
   # value: SECRET_KEYS, which the leak check reads, comes from setup.sh.
   OFF_DIR="$WORK/offsite-check"; OFF_PW="chk$(od -An -N9 -tx1 /dev/urandom | tr -d ' \n')="
+  # Cloud keys (T-089): carried as they are, both hidden. The secret has
+  # the characters real ones have (/ + and a trailing =).
+  OFF_ID="CHKID$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
+  OFF_SK="chk/$(od -An -N9 -tx1 /dev/urandom | tr -d ' \n')+x="
   printf 'OFFSITE_REPO=%s\nOFFSITE_PASSWORD=%s\nOFFSITE_PHOTOS=yes\n' "$OFF_DIR" "$OFF_PW" >> "$S/.env"
+  printf 'OFFSITE_ACCESS_KEY_ID=%s\nOFFSITE_SECRET_ACCESS_KEY=%s\n' "$OFF_ID" "$OFF_SK" >> "$S/.env"
   run_setup yes3 --yes; rc=$?
   step "re-run, + every other service" yes3 "$rc"
   miss=""
-  for l in "OFFSITE_REPO=$OFF_DIR" "OFFSITE_PASSWORD=$OFF_PW" "OFFSITE_PHOTOS=yes"; do
+  for l in "OFFSITE_REPO=$OFF_DIR" "OFFSITE_PASSWORD=$OFF_PW" "OFFSITE_PHOTOS=yes" \
+           "OFFSITE_ACCESS_KEY_ID=$OFF_ID" "OFFSITE_SECRET_ACCESS_KEY=$OFF_SK"; do
     grep -qxF -- "$l" "$S/.env" || miss="$miss ${l%%=*}"
   done
   if [ -n "$miss" ]; then err "re-run did not keep the off-site keys as they were:$miss"
   elif grep -qF -- "$OFF_PW" "$WORK/yes3.log"; then err "re-run printed OFFSITE_PASSWORD"
-  else ok "re-run kept the off-site keys (a password ending in = too), password not shown"; fi
+  elif grep -qF -- "$OFF_SK" "$WORK/yes3.log"; then err "re-run printed OFFSITE_SECRET_ACCESS_KEY"
+  elif grep -qF -- "$OFF_ID" "$WORK/yes3.log"; then err "re-run printed OFFSITE_ACCESS_KEY_ID"
+  else ok "re-run kept the off-site keys (a password ending in = too), password and cloud keys not shown"; fi
   if ! grep -qx 'SONARR_VERSION=0.0.0-check' "$S/.env"; then err "re-run dropped a version override from .env"
   elif ! grep -q 'held at a version override: SONARR_VERSION' "$WORK/yes3.log"; then err "re-run did not warn about the version override"
   else ok "re-run kept the version override and said so"; fi
@@ -597,11 +605,65 @@ else
   [ "$rc" -eq 0 ] && has_line bk-local '^  off-site:       skipped (--local-only)$' \
        "backup.sh --local-only: the plan does not say the off-site copy is skipped" \
     && ok "backup.sh --local-only: off-site copy skipped"
-  sed -i 's#^OFFSITE_REPO=.*#OFFSITE_REPO=s3:https://s3.example.com/bucket#' "$S/.env"
+  # Cloud storage (T-089): an s3: URL is planned with its keys from .env
+  # (never printed: step's leak check reads SECRET_KEYS' values); other
+  # backends, a URL with an "@" (not echoed), a missing or odd key refused.
+  S3_URL="s3:https://s3.example.com/check-bucket"
+  sed -i "s#^OFFSITE_REPO=.*#OFFSITE_REPO=$S3_URL#" "$S/.env"
+  run_helper bk-s3 ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
+  step "backup.sh --dry-run, s3: repository" bk-s3 "$rc"
+  [ "$rc" -eq 0 ] && has_line bk-s3 "^  off-site:       $S3_URL, encrypted (restic/restic:" \
+       "backup.sh --dry-run: no off-site line for an s3: OFFSITE_REPO" \
+    && ok "backup.sh --dry-run: plans the off-site copy to cloud storage (s3:)"
+  grep -q 'off-site repository is on the SAME' "$WORK/bk-s3.log" && err "backup.sh --dry-run: an s3: repository called on the SAME filesystem"
+  refused() { # log rc text what   (exit 1 and the text, else a failure)
+    if [ "$2" -ne 1 ] || ! grep -qF -- "$3" "$WORK/$1.log"; then
+      err "$4 (exit $2)"; tail_of "$WORK/$1.log"; return 1
+    fi
+  }
+  sed -i 's#^OFFSITE_REPO=.*#OFFSITE_REPO=b2:check-bucket:anteiku#' "$S/.env"
   run_helper bk-url ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
-  if [ "$rc" -ne 1 ] || ! grep -q 'OFFSITE_REPO must be a folder path' "$WORK/bk-url.log"; then
-    err "backup.sh: an s3: OFFSITE_REPO was not refused (exit $rc)"; tail_of "$WORK/bk-url.log"
-  else ok "backup.sh: refuses an OFFSITE_REPO that is not a folder"; fi
+  refused bk-url "$rc" 'OFFSITE_REPO must be a folder path (/mnt/…) or s3:https://…' \
+    "backup.sh: a b2: OFFSITE_REPO was not refused" \
+    && ok "backup.sh: refuses an OFFSITE_REPO that is neither a folder nor s3:"
+  sed -i 's#^OFFSITE_REPO=.*#OFFSITE_REPO=s3:https://chkuser:chkpw-in-url@s3.example.com/b#' "$S/.env"
+  run_helper bk-at ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
+  if refused bk-at "$rc" "OFFSITE_REPO holds an '@' (not shown here)" "backup.sh: an OFFSITE_REPO with an @ was not refused"; then
+    if grep -q 'chkpw-in-url' "$WORK/bk-at.log"; then err "backup.sh: printed an OFFSITE_REPO that holds an @"
+    else ok "backup.sh: refuses an OFFSITE_REPO with an @, without printing it"; fi
+  fi
+  sed -i "s#^OFFSITE_REPO=.*#OFFSITE_REPO=$S3_URL#" "$S/.env"
+  cp "$S/.env" "$WORK/env-s3"
+  sed -i '/^OFFSITE_SECRET_ACCESS_KEY=/d' "$S/.env"
+  run_helper bk-nokey ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
+  refused bk-nokey "$rc" 'OFFSITE_SECRET_ACCESS_KEY is empty' "backup.sh: an s3: OFFSITE_REPO without its secret key was not refused" \
+    && ok "backup.sh: refuses an s3: OFFSITE_REPO without its keys"
+  cp "$WORK/env-s3" "$S/.env"
+  sed -i 's#^OFFSITE_ACCESS_KEY_ID=.*#OFFSITE_ACCESS_KEY_ID=CHK\#cut#' "$S/.env"
+  run_helper bk-oddkey ./scripts/backup.sh --dry-run "$BK_DEST"; rc=$?
+  refused bk-oddkey "$rc" 'OFFSITE_ACCESS_KEY_ID holds a character a key' "backup.sh: a key holding # was not refused" \
+    && ok "backup.sh: refuses a key its credentials file would cut (#)"
+  # offsite-restore.sh, no terminal, keys missing: refused before restic.
+  # A docker stand-in first on the PATH logs any call (LESSONS 24): a
+  # broken refusal must fail here, never start restic on this machine.
+  mkdir -p "$WORK/stub-docker"
+  printf '#!/bin/sh
+echo "$*" >> "%s"
+exit 97
+' "$WORK/stub-docker.calls" > "$WORK/stub-docker/docker"
+  chmod +x "$WORK/stub-docker/docker"; : > "$WORK/stub-docker.calls"
+  cp "$WORK/env-s3" "$S/.env"; sed -i '/^OFFSITE_ACCESS_KEY_ID=/d' "$S/.env"
+  run_helper rs-nokey "PATH=$WORK/stub-docker:$PATH" ./scripts/offsite-restore.sh --list; rc=$?
+  refused rs-nokey "$rc" 'No OFFSITE_ACCESS_KEY_ID in .env, and no terminal to ask for it.' \
+    "offsite-restore.sh: an s3: repository without its key ID, no terminal: not refused" \
+    && ok "offsite-restore.sh: no key and no terminal to ask: refused"
+  sed -i 's#^OFFSITE_REPO=.*#OFFSITE_REPO=sftp:check-host:/srv/anteiku#' "$S/.env"
+  run_helper rs-url "PATH=$WORK/stub-docker:$PATH" ./scripts/offsite-restore.sh --list; rc=$?
+  refused rs-url "$rc" 'OFFSITE_REPO must be a folder path (/mnt/…) or s3:https://…' \
+    "offsite-restore.sh: an sftp: OFFSITE_REPO was not refused" \
+    && ok "offsite-restore.sh: refuses an OFFSITE_REPO that is neither a folder nor s3:"
+  [ -s "$WORK/stub-docker.calls" ] && err "offsite-restore.sh: called docker before refusing ($(wc -l < "$WORK/stub-docker.calls") call(s))"
+  cp "$WORK/env-s3" "$S/.env"
   sed -i "s#^OFFSITE_REPO=.*#OFFSITE_REPO=$OFF_DIR#" "$S/.env"
 
   if ! have python3; then

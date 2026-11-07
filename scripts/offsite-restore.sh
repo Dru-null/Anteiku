@@ -13,8 +13,10 @@
 #    ./scripts/offsite-restore.sh --snapshot=ID /mnt/restore
 #
 #  On a new machine there is no .env yet: put the repository in front,
-#  and type the password when asked:
+#  and type the password when asked (for cloud storage, its two keys
+#  first):
 #    OFFSITE_REPO=/mnt/usb/anteiku-offsite ./scripts/offsite-restore.sh --list
+#    OFFSITE_REPO=s3:https://<endpoint>/<bucket> ./scripts/offsite-restore.sh --list
 #  Off-site settings put in front of the command win over .env.
 # ============================================================
 set -uo pipefail
@@ -35,7 +37,7 @@ esac; done
 ENV_FILE="${ENV_FILE:-.env}"
 if [ -r "$ENV_FILE" ]; then
   GIVEN=()   # off-site settings given in front of the command win
-  for k in OFFSITE_REPO OFFSITE_PASSWORD; do
+  for k in OFFSITE_REPO OFFSITE_PASSWORD OFFSITE_ACCESS_KEY_ID OFFSITE_SECRET_ACCESS_KEY; do
     [ -n "${!k:-}" ] && GIVEN+=("$k=${!k}")
   done
   set -a
@@ -45,7 +47,17 @@ if [ -r "$ENV_FILE" ]; then
   set +a
 fi
 [ -n "${OFFSITE_REPO:-}" ] || { err "No OFFSITE_REPO: set it in .env, or in front of the command (--help)."; exit 1; }
-offsite_is_dir "$OFFSITE_REPO" || { offsite_not_dir; exit 1; }
+offsite_repo_ok || exit 1
+if offsite_is_s3 "$OFFSITE_REPO"; then
+  for k in OFFSITE_ACCESS_KEY_ID OFFSITE_SECRET_ACCESS_KEY; do
+    [ -n "${!k:-}" ] && continue
+    [ -t 0 ] || { err "No $k in .env, and no terminal to ask for it."; exit 1; }
+    if [ "$k" = OFFSITE_ACCESS_KEY_ID ]; then read -rp "  Access key ID: " v
+    else read -rsp "  Secret access key: " v; echo; fi
+    printf -v "$k" '%s' "$v"; v=""
+  done
+  offsite_keys_ok || exit 1
+fi
 if [ -z "${OFFSITE_PASSWORD:-}" ]; then
   [ -t 0 ] || { err "No OFFSITE_PASSWORD in .env, and no terminal to ask for it."; exit 1; }
   read -rsp "  Off-site password: " OFFSITE_PASSWORD; echo
@@ -57,6 +69,17 @@ h1 "Off-site copy"
 kv "Repository" "$OFFSITE_REPO"
 kv "restic" "$RESTIC_IMAGE"
 
+# An empty folder only: a restore over files you have would mix the two.
+if [ "$LIST" -eq 0 ] && [ -e "$TARGET" ] && [ -n "$(ls -A -- "$TARGET" 2>/dev/null)" ]; then
+  err "$TARGET is not empty. Restore into an empty folder, then copy what you need."
+  exit 1
+fi
+
+# Fails in seconds, with restic's own line, where restic would retry
+# for 15 minutes (a wrong key, a missing bucket).
+offsite_probe; rc=$?
+if [ "$rc" -ne 0 ]; then err "cannot open it: $(offsite_why "$rc")"; offsite_tail; exit 1; fi
+
 if [ "$LIST" -eq 1 ]; then
   offsite_run -- snapshots --host "$OFFSITE_HOST"; rc=$?
   if [ "$rc" -ne 0 ]; then err "could not list it: $(offsite_why "$rc")"; tail -n 5 <<< "$OFFSITE_OUT" | offsite_lines; exit 1; fi
@@ -64,11 +87,6 @@ if [ "$LIST" -eq 1 ]; then
   exit 0
 fi
 
-# An empty folder only: a restore over files you have would mix the two.
-if [ -e "$TARGET" ] && [ -n "$(ls -A -- "$TARGET" 2>/dev/null)" ]; then
-  err "$TARGET is not empty. Restore into an empty folder, then copy what you need."
-  exit 1
-fi
 mkdir -p -- "$TARGET" || { err "cannot create $TARGET"; exit 1; }
 kv "Into" "$TARGET"
 if [ -n "$SNAP" ]; then FROM="$SNAP:/anteiku"; else FROM="latest:/anteiku"; fi

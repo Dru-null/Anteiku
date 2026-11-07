@@ -59,8 +59,8 @@ banner "anteiku $S_DOT setup" "pick your services, write your config"
 # otherwise be silently reused here, and printed in the preview below.
 # The off-site keys (docs/backups.md) are yours, never generated: they
 # are kept from .env as they are, and hidden like the rest.
-SECRET_KEYS="PIHOLE_PASSWORD NTFY_PASS KUMA_PASSWORD IMMICH_DB_PASSWORD VAULTWARDEN_ADMIN_TOKEN OFFSITE_PASSWORD"
-OFFSITE_KEYS="OFFSITE_REPO OFFSITE_PASSWORD OFFSITE_PHOTOS"
+SECRET_KEYS="PIHOLE_PASSWORD NTFY_PASS KUMA_PASSWORD IMMICH_DB_PASSWORD VAULTWARDEN_ADMIN_TOKEN OFFSITE_PASSWORD OFFSITE_ACCESS_KEY_ID OFFSITE_SECRET_ACCESS_KEY"
+OFFSITE_KEYS="OFFSITE_REPO OFFSITE_PASSWORD OFFSITE_PHOTOS OFFSITE_ACCESS_KEY_ID OFFSITE_SECRET_ACCESS_KEY"
 for k in $SECRET_KEYS $OFFSITE_KEYS; do unset "$k"; done
 
 PREV_PROFILES=""
@@ -1138,6 +1138,8 @@ W_FAIL=0; trap 'W_FAIL=1' ERR
   else
     echo "# OFFSITE_REPO=/mnt/other-disk/anteiku-offsite   <- see docs/backups.md"
     echo "# OFFSITE_PASSWORD=   <- long, random, and kept OFF this machine too"
+    echo "# Cloud storage (S3): OFFSITE_REPO=s3:https://<endpoint>/<bucket>, plus"
+    echo "# OFFSITE_ACCESS_KEY_ID= and OFFSITE_SECRET_ACCESS_KEY= (the bucket's key)"
   fi
   echo "# Optional push notifications for scheduled backups (ntfy)."
   echo "# NTFY_URL=http://localhost:8095"

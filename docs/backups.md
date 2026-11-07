@@ -93,9 +93,11 @@ your package manager.
 Optional. Set it up and `backup.sh` ends each run by sending that
 day's backup, and your photos, to a second place, **encrypted**:
 [restic](https://restic.net), run from its official image (pinned, so
-nothing is installed on your machine). That place is a folder: another
-disk, a USB disk you take elsewhere, or a NAS share mounted on this
-machine. Cloud storage directly (S3, B2, SFTP) is not supported yet.
+nothing is installed on your machine). That place is a folder (another
+disk, a USB disk you take elsewhere, a NAS share mounted on this
+machine) or cloud storage that speaks S3: see
+[Cloud storage](#cloud-storage-s3) below. Other restic backends (SFTP,
+B2's own protocol) are not supported.
 
 Add to `.env` (`setup.sh` keeps these lines when you re-run it):
 
@@ -117,6 +119,42 @@ The first run creates the repository there. Then:
   `update.sh` always skips it: an update needs the local backup, not an
   upload.
 
+### Cloud storage (S3)
+
+Most cloud storage providers speak S3, the protocol Amazon made and
+others copied (Backblaze B2, Wasabi, AWS S3 itself, and more), so the
+copy can go to a bucket there. Tested against an S3 server on a test
+machine, not against any provider: **untested with each provider**.
+
+1. At your provider, create a **private bucket** and a key that can
+   read and write it (an *application key* or *access key*: two parts,
+   an ID and a secret). Create the bucket yourself: `backup.sh` never
+   does, so a typo in its name fails instead of starting a second copy
+   somewhere else.
+2. Add to `.env`, with the S3 endpoint from your provider's bucket page:
+
+```bash
+OFFSITE_REPO=s3:https://s3.your-provider.example/your-bucket
+OFFSITE_PASSWORD=          # paste the output of: head -c 32 /dev/urandom | base64
+OFFSITE_ACCESS_KEY_ID=     # the key's ID
+OFFSITE_SECRET_ACCESS_KEY= # the key's secret
+```
+
+3. Run `./scripts/backup.sh`. The first run creates the repository in
+   the bucket; then it works as with a folder (above).
+
+- The keys reach restic as a file only you can read, never on a
+  command line. `setup.sh` keeps them when you re-run it and hides them
+  in its preview, like the password.
+- A wrong key, a missing bucket or no connection: restic itself would
+  retry for 15 minutes. `backup.sh` and `offsite-restore.sh` stop it
+  after 3 tries (3 to 4 seconds in our test) and print what restic
+  said, such as `Stat: The specified bucket does not exist` or `Stat:
+  The Access Key Id you provided does not exist in our records.` (the
+  test server's words; your provider's may differ).
+- The keys must be plain text, as providers give them: a space, `#`,
+  `;` or a quote is refused.
+
 ### Lose the password, lose the copy
 
 There is no recovery: not by you, not by restic, not by anyone. The
@@ -124,6 +162,8 @@ password is also in `.env`, but `.env` is *inside* the copy, locked
 with that same password, and the machine holding the other `.env` is
 the one you are recovering from. Keep the password somewhere else too:
 a password manager, or on paper with your important documents.
+With cloud storage, keep the bucket's two keys with it: you can make
+new keys at your provider, but only if you can still log in there.
 
 ### Size
 
@@ -138,6 +178,21 @@ So size the off-site disk for your photos, plus up to 24 snapshots
 (7 + 5 + 12, fewer where they overlap) of your local backup. A
 backup.sh run prints the size of the local one.
 
+### What cloud storage costs
+
+You pay for what is stored each month, and some providers also for
+what you download. A restore downloads everything, so check that line
+before you pick one. One example: Backblaze's price page
+(<https://www.backblaze.com/cloud-storage/pricing>), read on
+2026-11-07, said B2 costs $6.95 per TB per month, the first 10 GB free;
+downloads free up to 3 times what you store (averaged over the month),
+then $0.01 per GB; no minimum storage time. Prices change: read the
+page itself.
+
+At those prices, 200 GB of photos plus 24 snapshots of a 20 MB local
+backup (200.48 GB) cost about $1.32 a month ($15.89 a year), and a
+full restore (about 200 GB down) is inside the free 3 times.
+
 ### Restore from the off-site copy
 
 Tested as written, on the pinned Immich (v3.3.5): everything deleted
@@ -147,7 +202,8 @@ same album, same photos (byte for byte), thumbnails back.
 ```bash
 # 1. Install Docker, clone this repo to the same path as before (.env
 #    holds absolute paths), and run the rest from inside that folder.
-# 2. The newest off-site copy, into an empty folder (asks for the password):
+# 2. The newest off-site copy, into an empty folder (asks for the password;
+#    cloud storage: OFFSITE_REPO=s3:https://… asks for its two keys first):
 OFFSITE_REPO=/mnt/usb/anteiku-offsite ./scripts/offsite-restore.sh ~/restore
 B=~/restore/backup
 # 3. The stack (brings back .env) and the configs; root keeps their owners:
