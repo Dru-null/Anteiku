@@ -54,6 +54,10 @@ services:
   # browser on 8181 can't reach a qBittorrent listening on 8080.
   # WEBUI_PORTS sets its listening port to the host port on every start.
   # Other containers use qbittorrent:<this port>, as ports.md shows.
+  #
+  # UPNP/NAT-PMP OFF. setup.sh writes PortForwardingEnabled=false into a
+  # new qBittorrent.conf, so it never asks your router to forward a port.
+  # It doesn't touch a config that already exists. See arr.md, Traps.
   qbittorrent:
     image: ghcr.io/hotio/qbittorrent:${QBITTORRENT_VERSION:-release-5.3.0}
     container_name: ${STACK_PREFIX}qbittorrent

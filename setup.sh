@@ -1311,6 +1311,33 @@ if [ "$MK_FAIL" -gt 0 ]; then
 fi
 [ "$BAD_OWN" -eq 0 ] && [ "$MK_FAIL" -eq 0 ] && ok "all data directories exist and are owned by $DET_UID:$DET_GID"
 
+# qBittorrent asks the router to forward its torrent port (UPnP/NAT-PMP)
+# unless its config says otherwise, and 5.3 says nothing on a first start.
+# Anteiku forwards no ports: the first start gets it off. On the stack's
+# own network it reaches no router anyway; with network_mode: host it does
+# (T-064). An existing qBittorrent.conf is the user's: read, never written.
+if _sel_has qbittorrent; then
+  QB_CONF="$APPDATA_DEF/qbittorrent/config/qBittorrent.conf"
+  QB_OFF="Options > Connection, \"Use UPnP / NAT-PMP port forwarding from my router\""
+  e=""
+  if [ -e "$QB_CONF" ]; then
+    if grep -qx 'PortForwardingEnabled=false' "$QB_CONF" 2>/dev/null; then
+      ok "qBittorrent: UPnP/NAT-PMP port forwarding is off."
+    else
+      info "qBittorrent: UPnP/NAT-PMP port forwarding is on in its own settings."
+      note "Off: $QB_OFF (stacks/arr.md, Traps)."
+    fi
+  elif _mk "$APPDATA_DEF/qbittorrent/config" &&
+       e="$( { printf '[Network]\nPortForwardingEnabled=false\n' > "$QB_CONF"; } 2>&1 )"; then
+    ok "qBittorrent: UPnP/NAT-PMP port forwarding off from the first start."
+  else
+    [ -n "${e:-}" ] && warn "could not write $QB_CONF: ${e##*: }"
+    rm -f "$QB_CONF" 2>/dev/null   # half a file would read as "theirs" next run
+    note "qBittorrent will ask your router to forward a port. Turn it off:"
+    note "$QB_OFF."
+  fi
+fi
+
 # ============================================================
 #  ports.md — generated. Your actual ports, not the defaults.
 # ============================================================

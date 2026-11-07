@@ -62,6 +62,11 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   the write gave (no space, permission denied, a folder in the way),
   and suggests making room only when the disk is full. It used to ask
   "is the disk full?" whatever the cause.
+- qBittorrent starts with UPnP/NAT-PMP port forwarding off: `setup.sh`
+  writes that one setting before its first start, and only when it has
+  no `qBittorrent.conf` yet. An existing install keeps its own settings;
+  `setup.sh` says whether forwarding is on, and where to turn it off.
+  [stacks/arr.md](stacks/arr.md#traps)
 
 ---
 

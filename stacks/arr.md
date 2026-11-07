@@ -122,6 +122,23 @@ address other containers use changes with it, and Sonarr and Radarr keep
 the old one until you edit their download client. `setup.sh` warns when
 that happens.
 
+**qBittorrent asks your router to forward a port, unless told not to.**
+Its UPnP/NAT-PMP setting is on out of the box. On this stack's own
+Docker network the request never reaches the router (tested: nothing
+left the machine), but with `network_mode: host` it does, and your
+router opens a port nobody decided to open. This repo forwards no
+ports, so `setup.sh` turns it off before the first start
+(`PortForwardingEnabled=false` in `qBittorrent.conf`). It never edits a
+config that already exists, so an install from before this change keeps
+qBittorrent's default; `setup.sh` says which one you have. To check or
+change it: Options → Connection → "Use UPnP / NAT-PMP port forwarding
+from my router".
+
+qBittorrent's own log (`qbittorrent/data/logs/qbittorrent.log` in your
+`APPDATA` folder) also records the public IP it learns (`Detected external IP`). Read it
+before you paste it anywhere. `docker compose logs qbittorrent` doesn't
+show those lines.
+
 **Check file type, not extension.** Anything that arrives from the internet
 can be something other than what it claims. A padded `.exe` renamed to look
 like an episode will be imported happily, and if it stays hardlinked in the
