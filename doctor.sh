@@ -7,6 +7,10 @@
 # ============================================================
 set -uo pipefail
 cd "$(dirname "$0")" || exit 1
+for a in "$@"; do case "$a" in
+  -h|--help) sed -n '2,/^# ===/s/^# \{0,2\}//p' "${0##*/}"; exit 0 ;;
+  *) echo "unknown option: $a (try --help)" >&2; exit 2 ;;
+esac; done
 # shellcheck source=lib/detect.sh
 . lib/detect.sh
 # shellcheck source=lib/release.sh

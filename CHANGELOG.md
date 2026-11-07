@@ -54,6 +54,10 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   script's help printed only an error when run from another folder.
 - When `setup.sh` can't write `ports.md`, its first next step is to run
   it again, not `cat ports.md`.
+- `doctor.sh` and `scripts/backup-cron.sh` take `--help` and refuse
+  options they don't know. `backup-cron.sh --help` used to run a
+  backup and send its notification. Crontab lines without options are
+  unchanged.
 
 ---
 
