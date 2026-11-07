@@ -58,6 +58,10 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   options they don't know. `backup-cron.sh --help` used to run a
   backup and send its notification. Crontab lines without options are
   unchanged.
+- When `setup.sh` can't write `.env` or `ports.md`, it says the reason
+  the write gave (no space, permission denied, a folder in the way),
+  and suggests making room only when the disk is full. It used to ask
+  "is the disk full?" whatever the cause.
 
 ---
 

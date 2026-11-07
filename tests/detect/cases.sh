@@ -1050,13 +1050,56 @@ case_storage_media_from_env() {   # an install: doctor reads MEDIA_ROOT from .en
   doctor kv "Media (MEDIA_ROOT)" "$FX/usb/media  ($FX/usb, exfat, 900 GB free)"
 }
 
-case_ports_md_unwritable() {   # ports.md can't be written: "Next" must not send you to it (T-080)
+case_ports_md_unwritable() {   # ports.md can't be written: "Next" must not send you to it (T-080), the warning says why (T-083)
   ports_md_blocked
-  real warn "could not write ports.md (is the disk full?). Run ./setup.sh again once there is room."
+  real warn "could not write ports.md: Is a directory."
   real_lacks "wrote ports.md"
-  real_lacks "Is a directory"
+  real_lacks ": line "          # bash's own error line ("setup.sh: line N: ports.md: …")
+  real_lacks "cannot remove"    # rm's, on the folder
+  real_lacks "disk full"
+  real_lacks "once there is room"
   next step 1 "Your ports" "./setup.sh" "run again: ports.md wasn't written (see above)"
   next_lacks "cat ports.md"
+}
+
+case_env_write_fails() {   # the new .env (about 1.2 KB, S44) can't be written: the write's own reason, no disk guess (T-083)
+  file_limit 1
+  refuses
+  real err "could not write the configuration: File too large. .env was not changed."
+  real_lacks "df -h"
+  real_lacks "disk full"
+  real_lacks ": line "
+  real_lacks "wrote .env"
+}
+
+case_env_tmp_unwritable() {   # mktemp fails: its reason only, from GNU's and the Rust coreutils' wording alike (T-083)
+  tmp_locked
+  refuses
+  real err "could not write a temporary file: Permission denied. .env was not changed."
+  real_lacks "df -h"
+  real_lacks "os error"
+  real_lacks "wrote .env"
+}
+
+case_env_bak_write_fails() {   # the old .env (over 2 KiB of comments a re-run drops) can't be copied to .env.bak (T-083)
+  file_limit 2
+  refuses
+  { echo "COMPOSE_PROFILES=sonarr"; echo "PORT_SONARR=8989"
+    for _ in $(seq 40); do echo "# an old comment line, sixty-two bytes with its newline......"; done; } | prev_env
+  real err "could not write .env.bak: File too large. .env was not changed."
+  real_lacks "df -h"
+  real_lacks "cp: "
+  real_lacks "backed up to"
+}
+
+case_ports_md_readonly() {   # a ports.md that can't be opened for writing: same errno as one another user owns (T-083)
+  ports_md_blocked readonly
+  real warn "could not write ports.md: Permission denied."
+  real_lacks "wrote ports.md"
+  real_lacks ": line "
+  real_lacks "disk full"
+  real_lacks "once there is room"
+  next step 1 "Your ports" "./setup.sh" "run again: ports.md wasn't written (see above)"
 }
 
 case_disk_edge_25() {
