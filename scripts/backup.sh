@@ -41,28 +41,33 @@ fi
 STAMP="$(date +%F)"
 OUT="${DEST}/${STAMP}"
 RETAIN_DAYS="${BACKUP_RETAIN_DAYS:-30}"
-FAILED=0; CHANGED=0
+FAILED=0; CHANGED=0; REMOVED=0
 fail() { printf '  %s%s FAILED%s  %s\n' "$C_ERR" "$S_ERR" "$C_RST" "$1"; FAILED=1; }
 wrn()  { warn "$1"; }
 good() { ok "$1"; }
 
 # ============================================================
-#  tar's verdict. GNU tar exits 1 when a file changed while it read
-#  it (an app was writing to it) and 2 on a real error (tar manual,
-#  "Synopsis"). Exit 1 is only a warning when every message says
-#  "file changed as we read it". Any other message, or any other exit,
-#  is a failure. tar translates its messages, so it runs under
-#  LC_ALL=C. Its messages name files and errors, never contents.
-#    tar_run <command...>   0 clean, 1 files changed, 2 failed
+#  tar's verdict. GNU tar exits 1 when files changed while it read
+#  them, and 2 on a real error (tar manual, "Synopsis"). Exit 1 is
+#  only a warning when every message is one of these two:
+#    "file changed as we read it"      an app was writing to it
+#    "File removed before we read it"  an app deleted it (a temp file):
+#                                      no part of it is in the archive
+#  Anything else, such as "File shrank" (zeros where data was), or any
+#  other exit, is a failure. tar translates its messages, so it runs
+#  under LC_ALL=C. Its messages name files and errors, never contents.
+#    tar_run <command...>   0 clean, 1 changed/removed only, 2 failed
 #  The messages are left in TAR_MSGS, the exit code in TAR_RC.
 # ============================================================
 TAR_MSGS=""; TAR_RC=0
+TAR_CHANGED=': file changed as we read it$'
+TAR_REMOVED=': File removed before we read it$'
 tar_run() {
   TAR_MSGS="$(LC_ALL=C "$@" 2>&1 >/dev/null)"; TAR_RC=$?
   TAR_MSGS="$(grep -v '^tar: Exiting with failure status due to previous errors$' <<< "$TAR_MSGS")"
   [ "$TAR_RC" -eq 0 ] && return 0
   if [ "$TAR_RC" -eq 1 ] && [ -n "$TAR_MSGS" ] \
-     && ! grep -qv '^tar: .*: file changed as we read it$' <<< "$TAR_MSGS"; then
+     && ! grep -qv -e "^tar: .*$TAR_CHANGED" -e "^tar: .*$TAR_REMOVED" <<< "$TAR_MSGS"; then
     return 1
   fi
   return 2
@@ -75,12 +80,23 @@ tar_lines() {   # up to 10 lines of TAR_MSGS through sed $1, as notes
   [ "$n" -gt 10 ] && note "  ... and $((n - 10)) more"
 }
 
-tar_changed() {   # the warning, naming the files
-  CHANGED=$((CHANGED + $(grep -c . <<< "$TAR_MSGS")))
-  wrn "$1: written, but these changed while tar read them:"
-  tar_lines 's/^tar: \(.*\): file changed as we read it$/\1/'
-  note "An app was writing to them, so their copy may not match itself."
-  note "A database copied mid-write can fail to open when restored."
+tar_warned() {   # the warnings, naming the files: changed, then deleted
+  local c r
+  c="$(grep -c "$TAR_CHANGED" <<< "$TAR_MSGS")"
+  r="$(grep -c "$TAR_REMOVED" <<< "$TAR_MSGS")"
+  CHANGED=$((CHANGED + c)); REMOVED=$((REMOVED + r))
+  if [ "$c" -gt 0 ]; then
+    wrn "$1: written, but these changed while tar read them:"
+    tar_lines "/$TAR_CHANGED/!d; s/^tar: \(.*\)$TAR_CHANGED/\1/"
+    note "An app was writing to them, so their copy may not match itself."
+    note "A database copied mid-write can fail to open when restored."
+  fi
+  if [ "$r" -gt 0 ]; then
+    wrn "$1: written; these were deleted while tar read them:"
+    tar_lines "/$TAR_REMOVED/!d; s/^tar: \(.*\)$TAR_REMOVED/\1/"
+    note "An app removed them mid-backup, usually a temporary file such as"
+    note "a database's -journal. The archive holds no half-copy of them."
+  fi
   note "docs/backups.md, Traps: \"Live databases\"."
 }
 
@@ -263,7 +279,7 @@ else
     && sudo -n /usr/bin/chown "$(id -u):$(id -g)" "$OUT/appdata-configs.tar.gz" 2>/dev/null
   case "$rc" in
     0) good "appdata-configs.tar.gz ($(du -h "$OUT/appdata-configs.tar.gz" | cut -f1)) — ${#HAVE[@]} services" ;;
-    1) tar_changed "appdata-configs.tar.gz" ;;
+    1) tar_warned "appdata-configs.tar.gz" ;;
     *) tar_failed "could not archive configs" ;;
   esac
 fi
@@ -276,7 +292,7 @@ tar_run tar czf "$OUT/stack.tar.gz" --exclude='./appdata' --exclude='./testdata'
 [ -e "$OUT/stack.tar.gz" ] && chmod 600 "$OUT/stack.tar.gz"
 case "$rc" in
   0) good "stack.tar.gz ($(du -h "$OUT/stack.tar.gz" | cut -f1)) — includes .env, mode 600" ;;
-  1) tar_changed "stack.tar.gz" ;;
+  1) tar_warned "stack.tar.gz" ;;
   *) tar_failed "could not archive the stack" ;;
 esac
 
@@ -299,6 +315,7 @@ TOTAL="$(du -sh "$OUT" 2>/dev/null | cut -f1)"
 if [ "$FAILED" -eq 0 ]; then
   printf '  %sBackup complete%s — %s in %s\n' "$C_OK" "$C_RST" "$TOTAL" "$OUT"
   [ "$CHANGED" -gt 0 ] && warn "$CHANGED file(s) changed while being read: see the warning above."
+  [ "$REMOVED" -gt 0 ] && warn "$REMOVED file(s) deleted while being read: see the warning above."
   echo
   note "Untested backups are not backups. See docs/backups.md for how to"
   note "verify this one — it takes five minutes and is the only way to"

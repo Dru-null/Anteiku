@@ -72,6 +72,11 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   Older ones can't read `compose.yaml` (`include:`) and fail with an
   error that names neither: `service "…" has neither an image nor a
   build context specified`.
+- `scripts/backup.sh` warns, instead of failing, when an app deletes a
+  file while tar reads its folder (`File removed before we read it`,
+  often a database's `-journal`). It names the files; the backup counts
+  as done and `update.sh` goes on. Every other tar message still fails.
+  [docs/backups.md](docs/backups.md#traps)
 
 ---
 

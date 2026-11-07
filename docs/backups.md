@@ -300,11 +300,17 @@ services run. Most of them keep their data in a SQLite file they can
 write to at any moment. When a file changes while tar is reading it,
 tar says `file changed as we read it`, and that file's copy may not
 match itself: a database copied mid-write can fail to open after a
-restore. `backup.sh` reports this as a warning naming the files; the
-backup still counts as done, and `update.sh` goes on. Anything else
-tar reports, such as a file it can't read, is a failure, with tar's
-reason underneath. Immich's database is safe either way: it is dumped
-with `pg_dump`, never archived live.
+restore. Apps also delete short-lived files, such as a database's
+`-journal`; one listed in a folder and gone by the time tar opens it
+gives `File removed before we read it`, and the archive holds no
+half-copy of it.
+
+Those two messages are warnings: `backup.sh` names the files under
+each, the backup still counts as done, and `update.sh` goes on.
+Anything else tar reports is a failure, with tar's reason underneath:
+a file it can't read, or `File shrank by N bytes; padding with zeros`
+(the archive holds zeros where that data was). Immich's database is
+safe either way: it is dumped with `pg_dump`, never archived live.
 
 The same file named run after run? Back that service up stopped, or
 let it make its own copy first:
