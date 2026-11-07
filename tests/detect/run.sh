@@ -501,6 +501,8 @@ setup_lacks() { _lacks setup "$1"; }
 # setup.sh --yes for real (setup_real), its "Next" section only: next ok|warn|note|step …
 real()        { _has setup_real "$(_line "$@")"; }   # setup_real's whole output: real warn "…"
 real_lacks()  { _lacks setup_real "$1"; }
+# real_file <path> <content|ABSENT>: a file after setup_real, whole (T-064)
+real_file()   { _run setup_real; _check "file $1" "$2" "$(cat "$1" 2>/dev/null || echo ABSENT)"; }
 next()        { _has next "$(_line "$@")"; }
 next_lacks()  { _lacks next "$1"; }
 # update.sh in the install: update_check (--check), update, update_schedule (--schedule)

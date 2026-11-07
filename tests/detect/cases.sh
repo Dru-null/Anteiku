@@ -1118,6 +1118,65 @@ case_disk_edge_50() {
   doctor ok "50 GB free for images."
 }
 
+# ------------------------------------------------------------ qBittorrent UPnP (T-064)
+# A first start gets [Network] PortForwardingEnabled=false; an existing
+# qBittorrent.conf is read, never written.
+Q_CONF='qbittorrent/config/qBittorrent.conf'
+Q_OFF='[Network]
+PortForwardingEnabled=false'
+Q_HOW='Off: Options > Connection, "Use UPnP / NAT-PMP port forwarding from my router" (stacks/arr.md, Traps).'
+
+case_qbit_upnp_off_first() {   # --yes picks qbittorrent: a fresh install writes the line
+  setup_env "APPDATA=$FX/app"
+  real ok "qBittorrent: UPnP/NAT-PMP port forwarding off from the first start."
+  real_file "$FX/app/$Q_CONF" "$Q_OFF"
+  real_lacks "qBittorrent will ask your router"
+}
+
+case_qbit_upnp_conf_theirs() {   # theirs, forwarding on: kept as it is, said so
+  setup_env "APPDATA=$FX/app"; mkdir -p "$FX/app/qbittorrent/config"
+  printf '[BitTorrent]\nSession\\Port=6881\n\n[Network]\nPortForwardingEnabled=true\n' > "$FX/app/$Q_CONF"
+  real info "qBittorrent: UPnP/NAT-PMP port forwarding is on in its own settings."
+  real note "$Q_HOW"
+  real_file "$FX/app/$Q_CONF" "$(printf '[BitTorrent]\nSession\\Port=6881\n\n[Network]\nPortForwardingEnabled=true')"
+  real_lacks "off from the first start"
+}
+
+case_qbit_upnp_conf_no_key() {   # theirs, no key: qBittorrent's default, on
+  setup_env "APPDATA=$FX/app"; mkdir -p "$FX/app/qbittorrent/config"
+  printf '[BitTorrent]\nSession\\Port=6881\n' > "$FX/app/$Q_CONF"
+  real info "qBittorrent: UPnP/NAT-PMP port forwarding is on in its own settings."
+  real_file "$FX/app/$Q_CONF" "$(printf '[BitTorrent]\nSession\\Port=6881')"
+}
+
+case_qbit_upnp_conf_off() {   # theirs, already off: kept, no advice
+  setup_env "APPDATA=$FX/app"; mkdir -p "$FX/app/qbittorrent/config"
+  printf '[Network]\nPortForwardingEnabled=false\nPortRangeMin=6881\n' > "$FX/app/$Q_CONF"
+  real ok "qBittorrent: UPnP/NAT-PMP port forwarding is off."
+  real_lacks "$Q_HOW"
+  real_file "$FX/app/$Q_CONF" "$(printf '[Network]\nPortForwardingEnabled=false\nPortRangeMin=6881')"
+}
+
+case_qbit_upnp_not_installed() {   # a Sonarr-only install: nothing about qBittorrent
+  setup_env "APPDATA=$FX/app"
+  prev_env <<'ENV'
+COMPOSE_PROFILES=sonarr
+PORT_SONARR=8989
+ENV
+  real_file "$FX/app/$Q_CONF" ABSENT
+  real_lacks "qBittorrent: UPnP"
+  real_lacks "qBittorrent will ask your router"
+}
+
+case_qbit_upnp_unwritable() {   # its config folder exists, locked: say why, leave no file
+  setup_env "APPDATA=$FX/app"; locked_dir "$FX/app/qbittorrent/config"
+  real warn "could not write $FX/app/$Q_CONF: Permission denied"
+  real note "qBittorrent will ask your router to forward a port. Turn it off:"
+  real note 'Options > Connection, "Use UPnP / NAT-PMP port forwarding from my router".'
+  real_file "$FX/app/$Q_CONF" ABSENT
+  real_lacks "off from the first start"
+}
+
 # ------------------------------------------------------------ other tools
 case_tools_no_nproc() {
   no_tool nproc
