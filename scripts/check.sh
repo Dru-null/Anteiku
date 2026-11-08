@@ -144,6 +144,10 @@ orph="$(comm -13 <(sort <<< "$KEYS") <(sort <<< "$mon"))"
 # Images pinned: a moving tag means two installs a month apart run
 # different software (docs/updating.md). The form is repo:${X_VERSION:-tag},
 # or repo:tag for images that must not be overridden.
+tag_moves() {   # no tag, a named channel, a bare major
+  [ -z "$1" ] || [[ $1 =~ ^(latest|release|stable|master|main|nightly|develop|dev|edge|beta)$ ]] \
+    || [[ $1 =~ ^v?[0-9]+(-[a-z0-9]+)?$ ]] || [[ $1 == version-* ]]
+}
 n=0; c=0
 while IFS= read -r line; do
   ref="${line#*image:}"; ref="${ref//[[:space:]\"\']/}"; where="${line%%:*}"
@@ -152,11 +156,17 @@ while IFS= read -r line; do
   elif [[ $ref == *\$* ]]; then err "image: use \${NAME_VERSION:-tag}: $ref ($where)"; n=$((n+1)); continue
   elif [[ ${ref##*/} == *:* ]]; then tag="${ref##*:}"
   else tag=""; fi
-  if [ -z "$tag" ] || [[ $tag =~ ^(latest|release|stable|master|main|nightly|develop|dev|edge|beta)$ ]] \
-     || [[ $tag =~ ^v?[0-9]+(-[a-z0-9]+)?$ ]] || [[ $tag == version-* ]]; then
-    err "image not pinned to an exact version: $ref ($where)"; n=$((n+1))
-  fi
+  if tag_moves "$tag"; then err "image not pinned to an exact version: $ref ($where)"; n=$((n+1)); fi
 done < <(grep -HE '^[[:space:]]*image:' stacks/*.yaml hw/*.yaml compose.yaml)
+# restic's image is pinned in a script, where no image: line shows it.
+where=lib/offsite.sh; c=$((c+1))
+ref="$(sed -n 's/^RESTIC_IMAGE="\([^"$]*\)"$/\1/p' "$where")"
+if [ -z "$ref" ] || [ "$(grep -cE '^[[:space:]]*RESTIC_IMAGE=' "$where")" -ne 1 ]; then
+  err "RESTIC_IMAGE: need exactly one line RESTIC_IMAGE=\"image:tag\" ($where)"; n=$((n+1))
+else
+  tag=""; [[ ${ref##*/} == *:* ]] && tag="${ref##*:}"
+  if tag_moves "$tag"; then err "image not pinned to an exact version: $ref ($where)"; n=$((n+1)); fi
+fi
 [ "$n" -eq 0 ] && ok "images: all $c pinned to an exact version"
 # update.sh decides from CHANGELOG.md whether a release may install by
 # itself: every entry needs an Action needed, and "None." must read as none.
