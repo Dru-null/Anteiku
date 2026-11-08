@@ -93,6 +93,7 @@ if [ -n "$SNAP" ]; then FROM="$SNAP:/anteiku"; else FROM="latest:/anteiku"; fi
 kv "Copy" "${SNAP:-the newest}"
 
 h1 "Restore"
+OFFSITE_ABORT_NOTE="$TARGET holds only part of the copy: empty it before you run this again."
 offsite_run -v "$(realpath -- "$TARGET"):/target" -- restore "$FROM" --host "$OFFSITE_HOST" --target /target; rc=$?
 if [ "$rc" -ne 0 ]; then
   err "restore failed: $(offsite_why "$rc")"

@@ -104,6 +104,11 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   follows the off-site restore's order, with your local backup and your
   own photo copy.
   [docs/backups.md](docs/backups.md#full-disaster-recovery)
+- An interrupted off-site backup or restore (Ctrl-C, `kill`, a closed
+  terminal) now stops restic and removes its temporary key files. Those
+  files used to stay in the temporary folder, and after a `kill` restic
+  kept running in its container, for up to 15 minutes if it was
+  retrying. `backup-cron.sh` still reports the run as failed.
 
 ---
 

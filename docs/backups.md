@@ -115,6 +115,11 @@ The first run creates the repository there. Then:
 - **Encrypted:** nothing in that folder can be read without
   `OFFSITE_PASSWORD`. The local backup is not encrypted; keep it on a
   disk only you use.
+- **Interrupted** (Ctrl-C, `kill`, a closed terminal), it stops restic
+  and removes its temporary key files; the local backup is already
+  written, and the next run sends the copy. An interrupted restore
+  leaves part of the copy in its folder: empty that before running it
+  again.
 - `./scripts/backup.sh --local-only` skips the off-site copy.
   `update.sh` always skips it: an update needs the local backup, not an
   upload.
