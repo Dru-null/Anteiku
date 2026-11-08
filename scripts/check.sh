@@ -182,17 +182,18 @@ k_py="$(sed -n 's/^PYTHON_IMAGE="\(.*\)"$/\1/p' scripts/kuma-bootstrap.sh)"
 
 # A script's option loop, read and never run (T-085, T-086): the
 # case "$a" in ... esac that holds -h|--help, one arm per line ending ;;.
-# opt_loop <file> fills ARMS ("pattern<TAB>body" each); returns 1 if the
-# loop is missing or can't be read. first_arm <option> sets HIT to the
-# first arm the option matches (bash's own [[ == ]] on each | alternative,
-# as case does), or "" if none.
+# opt_loop <file> fills ARMS ("pattern<TAB>body" each) and LOOP_AT (the
+# line of its case); returns 1 if the loop is missing or can't be read.
+# first_arm <option> sets HIT to the first arm the option matches (bash's
+# own [[ == ]] on each | alternative, as case does), or "" if none.
 opt_loop() {
   local loop line
   ARMS=()
-  loop="$(awk '/case "\$a" in$/ { buf = ""; on = 1 }
+  loop="$(awk '/case "\$a" in$/ { buf = ""; at = NR; on = 1 }
     on { buf = buf $0 "\n" }
-    on && /^[[:space:]]*esac/ { if (buf ~ /-h\|--help\)/) { printf "%s", buf; exit } on = 0 }' "$1")"
+    on && /^[[:space:]]*esac/ { if (buf ~ /-h\|--help\)/) { printf "%d\n%s", at, buf; exit } on = 0 }' "$1")"
   [ -n "$loop" ] || return 1
+  LOOP_AT="${loop%%$'\n'*}"; loop="${loop#*$'\n'}"
   while IFS= read -r line; do
     [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
     if [[ $line =~ ^[[:space:]]*([^[:space:]()]+)\)[[:space:]]+(.*\;\;)[[:space:]]*$ ]] \
@@ -213,13 +214,75 @@ first_arm() {
   done
 }
 
+# Options are parsed before any work (T-099), read and never run: code
+# above the loop would run for real under --help, here and in CI. Allowed
+# above it: set, cd to the script's folder, sourcing lib/, and assignments
+# with no command substitution. A loop inside main() also needs the same
+# of the top level below main(), up to main "$@". check.sh's re-run of
+# itself in a clean environment is the one exception. before_loop <file>,
+# after opt_loop, sets EARLY to the first line that breaks this, or "".
+SAFE_ASSIGN='[A-Za-z_][A-Za-z0-9_]*=([A-Za-z0-9_./:-]*|"[^"`(]*"|\(\))'
+stmt_of() {   # sets STMT: the line without indentation or trailing comment
+  STMT="${1%%[[:space:]]#*}"
+  STMT="${STMT#"${STMT%%[![:space:]]*}"}"; STMT="${STMT%"${STMT##*[![:space:]]}"}"
+  [[ $STMT == \#* ]] && STMT=""
+  return 0
+}
+safe_stmt() {
+  [[ -z $1 ]] || [[ $1 =~ ^set(\ [-+][a-z]+|\ pipefail)+$ ]] \
+    || [[ $1 =~ ^cd\ \"\$\(dirname\ \"\$0\"\)(/\.\.)*\"\ \|\|\ exit\ 1$ ]] \
+    || [[ $1 =~ ^\.\ lib/[a-z_-]+\.sh$ ]] \
+    || [[ $1 =~ ^(export\ )?$SAFE_ASSIGN(\;\ *$SAFE_ASSIGN)*\;?$ ]]
+}
+# shellcheck disable=SC2016  # the $ in these strings is the text being read
+rerun_line() {   # check.sh's own block at the top of this file
+  case "$1" in
+    'if [ -z "${ANTEIKU_CHECK_CLEAN:-}" ]; then'|'keep=(ANTEIKU_CHECK_CLEAN=1 "PATH=$PATH" "HOME=$HOME")') return 0 ;;
+    '[ -n "${!v:-}" ] && keep+=("$v=${!v}")'|done|'exec env -i "${keep[@]}" bash "$0" "$@"'|fi) return 0 ;;
+    *) [[ $1 =~ ^for\ v\ in\ [A-Z_\ ]+\;\ do$ ]] ;;
+  esac
+}
+# shellcheck disable=SC2016,SC2094  # the $ is the text read; nothing writes $f
+before_loop() {
+  local f="$1" i=0 line head prev inmain=0 fn=1
+  EARLY=""
+  stmt_of "$(sed -n "${LOOP_AT}p" "$f")"; head="$STMT"
+  stmt_of "$(sed -n "$((LOOP_AT-1))p" "$f")"; prev="$STMT"
+  if [ "$head" != 'for a in "$@"; do case "$a" in' ]; then
+    if [ "$head" != 'case "$a" in' ]; then EARLY="$head"; return; fi
+    if [ "$prev" != 'for a in "$@"; do' ]; then EARLY="${prev:-the line above its case}"; return; fi
+  fi
+  while IFS= read -r line; do
+    i=$((i+1)); [ "$i" -lt "$LOOP_AT" ] || break
+    stmt_of "$line"
+    if [ "$line" = 'main() {' ]; then inmain=1; continue; fi
+    if [ "$i" -eq "$((LOOP_AT-1))" ] && [ "$STMT" = 'for a in "$@"; do' ]; then continue; fi
+    if [ "$f" = scripts/check.sh ] && rerun_line "$STMT"; then continue; fi
+    safe_stmt "$STMT" || { EARLY="$STMT"; return; }
+  done < "$f"
+  [ "$inmain" -eq 1 ] || return 0
+  i=0
+  while IFS= read -r line; do
+    i=$((i+1)); [ "$i" -gt "$LOOP_AT" ] || continue
+    if [ "$fn" -eq 1 ]; then [[ $line =~ ^\}[[:space:]]*(#.*)?$ ]] && fn=0; continue; fi
+    stmt_of "$line"
+    case "$STMT" in 'main "$@"'|'main "$@"; exit') return 0 ;; esac
+    if [[ $STMT =~ ^[A-Za-z_][A-Za-z0-9_]*\(\)\ *\{ ]]; then
+      [[ $STMT == *\} ]] || fn=1
+      continue
+    fi
+    safe_stmt "$STMT" || { EARLY="$STMT"; return; }
+  done < "$f"
+}
+
 # --help prints the script's comment header and nothing else: no code
 # after it, nothing cut off, and the same from another folder (the
 # scripts cd before they read themselves). Every script with --help, and
 # every executable one outside lib/ must have it (T-082). One without is
 # named, never run: backup-cron.sh would have run a real backup. Nor is
-# one whose loop can't be read, or where an earlier arm takes --help or
-# -h (T-086: `--*) ;;` above it and the script ran for real).
+# one whose loop can't be read, where an earlier arm takes --help or -h
+# (T-086: `--*) ;;` above it and the script ran for real), or with code
+# above the loop that isn't allowed there (T-099).
 n=0; c=0
 for f in "${SH[@]}"; do
   if ! grep -q -- '-h|--help)' "$f"; then
@@ -241,6 +304,10 @@ for f in "${SH[@]}"; do
   done
   if [ -n "$shadow" ]; then
     err "--help: $f: $shadow (not run)"; n=$((n+1)); c=$((c+2)); continue
+  fi
+  before_loop "$f"
+  if [ -n "$EARLY" ]; then
+    err "--help: $f: '${EARLY:0:60}' runs before its option loop (not run)"; n=$((n+1)); c=$((c+2)); continue
   fi
   for how in "./$f" "../$f"; do
     c=$((c+1))
@@ -264,8 +331,8 @@ else note "--help: $n problem(s) in $((c / 2)) scripts"; fi
 # the option loop that holds -h|--help, the first arm an unknown option
 # matches must exit 2 with its message on stderr. Read, never run: a
 # script whose refusal is missing would do its work (backup-cron.sh: a
-# backup and a notification). The --help runs above show the loop comes
-# before the work. One arm per line, ending ;;, or it can't be read.
+# backup and a notification). before_loop above holds the loop before
+# the work. One arm per line, ending ;;, or it can't be read.
 n=0; c=0
 for f in "${SH[@]}"; do
   grep -q -- '-h|--help)' "$f" || continue
