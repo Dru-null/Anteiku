@@ -64,7 +64,7 @@ One service touches all of these. `check.sh` catches most of what you miss.
 | Where | What |
 |---|---|
 | `setup.sh` `CATALOGUE` | `key\|stack\|default\|hostport\|internalport\|description`. Keep the description ASCII |
-| `stacks/<stack>.yaml` | The service, with `profiles: ["<key>"]`, `container_name: ${STACK_PREFIX}<key>` and an exact pinned image: `repo:${KEY_VERSION:-1.2.3}` |
+| `stacks/<stack>.yaml` | The service, with `profiles: ["<key>"]`, `container_name: ${STACK_PREFIX}<key>` and an exact pinned image: `repo:${KEY_VERSION:-1.2.3}`. `check.sh` refuses a major.minor tag; if the version really has two parts, end the line with `# two-part: <why>` |
 | `stacks/<stack>.md` | What it is, setup order, and a Traps section |
 | `scripts/kuma-monitors.py` | Its monitor. The drift check fails without one |
 | `setup.sh` `_mk` lines | Data directories, if it needs any |
