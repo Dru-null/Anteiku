@@ -148,16 +148,27 @@ tag_moves() {   # no tag, a named channel, a bare major
   [ -z "$1" ] || [[ $1 =~ ^(latest|release|stable|master|main|nightly|develop|dev|edge|beta)$ ]] \
     || [[ $1 =~ ^v?[0-9]+(-[a-z0-9]+)?$ ]] || [[ $1 == version-* ]]
 }
-n=0; c=0
+# A major.minor tag (0.19, v3.12, 3.12-alpine3.24) usually moves with every
+# patch release. A LinuxServer build (1.2-ls3) is exact. Where a version
+# really has two parts, the image: line says so: # two-part: <why>.
+two_part() {
+  [[ $1 =~ ^v?[0-9]+\.[0-9]+(-[a-z][a-z0-9.]*)*$ ]] && [[ ! $1 =~ -ls[0-9]+$ ]]
+}
+n=0; c=0; two=0
 while IFS= read -r line; do
-  ref="${line#*image:}"; ref="${ref//[[:space:]\"\']/}"; where="${line%%:*}"
+  code="${line%%[[:space:]]#*}"; comment="${line#"$code"}"   # a comment must not read as part of the tag
+  ref="${code#*image:}"; ref="${ref//[[:space:]\"\']/}"; where="${line%%:*}"
   c=$((c+1))
   if [[ $ref =~ ^[^$]+:\$\{[A-Z0-9_]+_VERSION:-([^}]+)\}$ ]]; then tag="${BASH_REMATCH[1]}"
   elif [[ $ref == *\$* ]]; then err "image: use \${NAME_VERSION:-tag}: $ref ($where)"; n=$((n+1)); continue
   elif [[ ${ref##*/} == *:* ]]; then tag="${ref##*:}"
   else tag=""; fi
-  if tag_moves "$tag"; then err "image not pinned to an exact version: $ref ($where)"; n=$((n+1)); fi
+  if tag_moves "$tag"; then err "image not pinned to an exact version: $ref ($where)"; n=$((n+1))
+  elif two_part "$tag" && ! [[ $comment =~ ^[[:space:]]*#[[:space:]]*two-part:[[:space:]]*[^[:space:]] ]]; then
+    err "image not pinned to an exact version: $ref ($where)"; n=$((n+1)); two=$((two+1))
+  fi
 done < <(grep -HE '^[[:space:]]*image:' stacks/*.yaml hw/*.yaml compose.yaml)
+[ "$two" -eq 0 ] || note "A major.minor tag usually moves with each patch. If the version really has two parts, end the line with: # two-part: <why>"
 # restic's image is pinned in a script, where no image: line shows it.
 where=lib/offsite.sh; c=$((c+1))
 ref="$(sed -n 's/^RESTIC_IMAGE="\([^"$]*\)"$/\1/p' "$where")"
@@ -165,7 +176,7 @@ if [ -z "$ref" ] || [ "$(grep -cE '^[[:space:]]*RESTIC_IMAGE=' "$where")" -ne 1 
   err "RESTIC_IMAGE: need exactly one line RESTIC_IMAGE=\"image:tag\" ($where)"; n=$((n+1))
 else
   tag=""; [[ ${ref##*/} == *:* ]] && tag="${ref##*:}"
-  if tag_moves "$tag"; then err "image not pinned to an exact version: $ref ($where)"; n=$((n+1)); fi
+  if tag_moves "$tag" || two_part "$tag"; then err "image not pinned to an exact version: $ref ($where)"; n=$((n+1)); fi
 fi
 [ "$n" -eq 0 ] && ok "images: all $c pinned to an exact version"
 # update.sh decides from CHANGELOG.md whether a release may install by
