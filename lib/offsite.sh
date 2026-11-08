@@ -66,6 +66,42 @@ offsite_keys_ok() {
   done
 }
 
+# What an interrupted run has to clean up. `docker run` doesn't take its
+# container down when it dies: restic would keep going (retrying for up
+# to 15 minutes, or uploading with the repository locked), and the key
+# files would stay on disk. Globals, not locals: a trap runs inside the
+# interrupted function, and it must see them however far that got.
+OFFSITE_NAME=""     # this run's container
+OFFSITE_CLI=""      # its docker client: it could still start the container
+OFFSITE_KEYFILE=""  # the password, for restic
+OFFSITE_S3FILE=""   # the cloud keys, for restic
+OFFSITE_GRACE=10    # seconds restic gets to remove its lock
+# shellcheck disable=SC2034  # set by the scripts that source this
+OFFSITE_ABORT_NOTE=""   # what the interrupted script wants to add
+
+offsite_clear() {
+  rm -f -- "$OFFSITE_KEYFILE" "$OFFSITE_S3FILE"
+  OFFSITE_KEYFILE=""; OFFSITE_S3FILE=""; OFFSITE_NAME=""; OFFSITE_CLI=""
+}
+
+# Stop restic the polite way, so it removes its lock from the repository.
+# The exit code is the script's own: backup-cron.sh must see a failure.
+offsite_abort() {
+  trap '' INT TERM HUP   # a second Ctrl-C must not cut this short
+  err "interrupted: stopping restic" >&2
+  if [ -n "$OFFSITE_NAME" ]; then
+    docker stop -t "$OFFSITE_GRACE" "$OFFSITE_NAME" > /dev/null 2>&1
+    # A client still going could start the container after this. Killed
+    # mid-create it leaves one "Created", which --rm never removes: give
+    # Docker a moment to finish creating it, then remove it.
+    if [ -n "$OFFSITE_CLI" ] && kill "$OFFSITE_CLI" 2> /dev/null; then sleep 0.5; fi
+    docker rm -f "$OFFSITE_NAME" > /dev/null 2>&1
+  fi
+  offsite_clear
+  if [ -n "$OFFSITE_ABORT_NOTE" ]; then note "$OFFSITE_ABORT_NOTE" >&2; fi
+  exit "$1"
+}
+
 # offsite_run <docker run options...> -- <restic arguments...>
 # Runs restic as this user. Output in OFFSITE_OUT, exit code returned.
 # restic's codes: 0 ok, 1 failed, 3 some files unreadable (snapshot
@@ -76,50 +112,58 @@ offsite_keys_ok() {
 OFFSITE_OUT=""
 OFFSITE_STOP=0   # >0: stop restic at that many retry lines (offsite_probe)
 offsite_run() {
-  local opts=() key s3="" repo=() repo_arg rc
+  local rc
+  trap 'offsite_abort 130' INT
+  trap 'offsite_abort 143' TERM
+  trap 'offsite_abort 129' HUP
+  offsite_restic "$@"; rc=$?
+  offsite_clear
+  trap - INT TERM HUP
+  return "$rc"
+}
+
+offsite_restic() {
+  local opts=() repo=() repo_arg line n=0 rc=1 stopped=0
   while [ "$#" -gt 0 ] && [ "$1" != -- ]; do opts+=("$1"); shift; done
   shift
+  OFFSITE_OUT=""
   if offsite_is_s3 "$OFFSITE_REPO"; then
-    s3="$(umask 077; mktemp)" || { OFFSITE_OUT="cannot create a temporary file"; return 1; }
+    OFFSITE_S3FILE="$(umask 077; mktemp)" || { OFFSITE_OUT="cannot create a temporary file"; return 1; }
     printf '[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n' \
-      "$OFFSITE_ACCESS_KEY_ID" "$OFFSITE_SECRET_ACCESS_KEY" > "$s3"
-    repo=(-v "$s3:/run/offsite.s3:ro" -e AWS_SHARED_CREDENTIALS_FILE=/run/offsite.s3)
+      "$OFFSITE_ACCESS_KEY_ID" "$OFFSITE_SECRET_ACCESS_KEY" > "$OFFSITE_S3FILE"
+    repo=(-v "$OFFSITE_S3FILE:/run/offsite.s3:ro" -e AWS_SHARED_CREDENTIALS_FILE=/run/offsite.s3)
     repo_arg="$OFFSITE_REPO"
   else
     # Docker would create a missing folder itself, owned by root.
     [ -d "$OFFSITE_REPO" ] || { OFFSITE_OUT="$OFFSITE_REPO: no such folder"; return 10; }
     repo=(-v "$(realpath -- "$OFFSITE_REPO"):/repo"); repo_arg=/repo
   fi
-  mkdir -p "$OFFSITE_CACHE" || { OFFSITE_OUT="cannot create $OFFSITE_CACHE"; rm -f "$s3"; return 1; }
-  key="$(umask 077; mktemp)" || { OFFSITE_OUT="cannot create a temporary file"; rm -f "$s3"; return 1; }
-  printf '%s' "$OFFSITE_PASSWORD" > "$key"
-  local run=(docker run --rm --hostname "$OFFSITE_HOST" --user "$(id -u):$(id -g)" -e HOME=/tmp
-    -v "$key:/run/offsite.key:ro" -v "$(realpath -- "$OFFSITE_CACHE"):/cache" "${repo[@]}")
-  if [ "$OFFSITE_STOP" -gt 0 ]; then
-    # Read restic's lines as they come; at the Nth "retrying" line,
-    # kill the container. Its exit code arrives as the last line.
-    local name="anteiku-offsite-$$-$RANDOM" line n=0 stopped=0
-    OFFSITE_OUT=""; rc=1
-    while IFS= read -r line; do
-      case "$line" in
-        __offsite_rc=*) rc="${line#*=}"; continue ;;
-        *" returned error, retrying after "*)
-          n=$((n + 1))
-          if [ "$n" -eq "$OFFSITE_STOP" ]; then
-            docker kill "$name" > /dev/null 2>&1; stopped=1
-          fi ;;
-      esac
-      OFFSITE_OUT+="$line"$'\n'
-    done < <("${run[@]}" --name "$name" "${opts[@]}" "$RESTIC_IMAGE" \
-      --repo "$repo_arg" --password-file /run/offsite.key --cache-dir /cache "$@" 2>&1 < /dev/null
-      echo "__offsite_rc=$?")
-    OFFSITE_OUT="${OFFSITE_OUT%$'\n'}"
-    [ "$stopped" -eq 1 ] && rc=99
-  else
-    OFFSITE_OUT="$("${run[@]}" "${opts[@]}" "$RESTIC_IMAGE" \
-      --repo "$repo_arg" --password-file /run/offsite.key --cache-dir /cache "$@" 2>&1 < /dev/null)"; rc=$?
-  fi
-  rm -f "$key" "$s3"
+  mkdir -p "$OFFSITE_CACHE" || { OFFSITE_OUT="cannot create $OFFSITE_CACHE"; return 1; }
+  OFFSITE_KEYFILE="$(umask 077; mktemp)" || { OFFSITE_OUT="cannot create a temporary file"; return 1; }
+  printf '%s' "$OFFSITE_PASSWORD" > "$OFFSITE_KEYFILE"
+  OFFSITE_NAME="anteiku-offsite-$$-$RANDOM"
+  # Read restic's lines as they come: a trap can run between them, and
+  # at the OFFSITE_STOP-th "retrying" line restic is killed. The client
+  # runs in the background to report its PID; its exit code arrives as
+  # the last line, after a newline of its own in case restic ended
+  # without one.
+  while IFS= read -r line; do
+    case "$line" in
+      __offsite_cli=*) OFFSITE_CLI="${line#*=}"; continue ;;
+      __offsite_rc=*) rc="${line#*=}"; continue ;;
+      *" returned error, retrying after "*)
+        n=$((n + 1))
+        if [ "$n" -eq "$OFFSITE_STOP" ]; then
+          docker kill "$OFFSITE_NAME" > /dev/null 2>&1; stopped=1
+        fi ;;
+    esac
+    OFFSITE_OUT+="$line"$'\n'
+  done < <(docker run --rm --name "$OFFSITE_NAME" --hostname "$OFFSITE_HOST" --user "$(id -u):$(id -g)" -e HOME=/tmp \
+      -v "$OFFSITE_KEYFILE:/run/offsite.key:ro" -v "$(realpath -- "$OFFSITE_CACHE"):/cache" "${repo[@]}" "${opts[@]}" \
+      "$RESTIC_IMAGE" --repo "$repo_arg" --password-file /run/offsite.key --cache-dir /cache "$@" 2>&1 < /dev/null &
+    p=$!; echo "__offsite_cli=$p"; wait "$p"; printf '\n__offsite_rc=%s\n' "$?")
+  while [ "${OFFSITE_OUT%$'\n'}" != "$OFFSITE_OUT" ]; do OFFSITE_OUT="${OFFSITE_OUT%$'\n'}"; done
+  [ "$stopped" -eq 1 ] && rc=99
   return "$rc"
 }
 

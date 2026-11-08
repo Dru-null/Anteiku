@@ -360,6 +360,7 @@ fi
 OFF_SAVED=""
 offsite_copy() {
   local rc mounts paths
+  OFFSITE_ABORT_NOTE="The local backup above is complete. The off-site copy isn't: the next run sends it."
   if offsite_is_dir "$OFFSITE_REPO" && [ ! -d "$OFFSITE_REPO" ]; then
     mkdir -p "$OFFSITE_REPO" || { fail "off-site: cannot create $OFFSITE_REPO"; return; }
   fi
