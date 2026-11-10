@@ -113,6 +113,7 @@ Everything here has a guide. Read the one for what you're doing before changing 
 
 | Guide | Covers |
 |---|---|
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | errors by what you see: what they really mean, how to confirm, the fix |
 | [`docs/getting-started.md`](docs/getting-started.md) | hardware, the operating system, Docker, the first run, and what to set up next |
 | [`stacks/*.md`](stacks/) | each service: what it's for, setup order, and the traps that catch people |
 | [`docs/remote-access.md`](docs/remote-access.md) | reaching your services from outside, safely |
