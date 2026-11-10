@@ -101,17 +101,18 @@ So `http://vault.home` is not enough for real use. Your options:
 **Tailscale Serve**, which also gets you remote access:
 
 ```bash
-sudo tailscale serve --bg --https=443 http://localhost:8222
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8222
 ```
 
 You get `https://machine.your-tailnet.ts.net` with a genuine
-certificate, reachable only from your tailnet. Then set `DOMAIN` in
-`.env` to exactly that URL and restart. See
-[`../docs/remote-access.md`](../docs/remote-access.md).
+certificate, reachable only from your tailnet. Then set
+`VAULTWARDEN_DOMAIN` in `.env` to exactly that URL and run
+`docker compose up -d vaultwarden` (a `restart` keeps the old value).
+See [`../docs/remote-access.md`](../docs/remote-access.md).
 
-> `DOMAIN` must match the URL you actually use, scheme included. A
-> mismatch breaks client connections and attachment links in ways that
-> are hard to diagnose.
+> `VAULTWARDEN_DOMAIN` (Vaultwarden's `DOMAIN`) must match the URL you
+> actually use, scheme included. A mismatch breaks client connections
+> and attachment links in ways that are hard to diagnose.
 
 ### 2. It holds every password you own
 
@@ -163,7 +164,7 @@ login screen.
 
 ## Traps
 
-**`DOMAIN` must be exactly right**, including `https://` and any port.
+**`VAULTWARDEN_DOMAIN` must be exactly right**, including `https://` and any port.
 Wrong value gives confusing client errors and broken attachments.
 
 **Extensions silently refuse plain HTTP.** If the extension will not
@@ -173,5 +174,5 @@ connect but the web vault works, this is why. It is not a bug.
 immediately take a backup and test restoring it — before you delete
 them from wherever they are now.
 
-**`SIGNUPS_ALLOWED=true` is a real exposure**, not a formality.
+**`VAULTWARDEN_SIGNUPS=true` is a real exposure**, not a formality.
 `setup.sh` reminds you after install for exactly this reason.

@@ -36,7 +36,8 @@ because there is no reachable service to find.
 | Port forwarding | everything you forward | minutes | Don't |
 
 The rest of this page covers Tailscale, because it is the one most
-people should use.
+people should use. It is written from Tailscale's documentation;
+Anteiku's tests don't run it (they use no accounts anywhere).
 
 ---
 
@@ -67,9 +68,12 @@ plain WireGuard.
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
+sudo tailscale set --accept-dns=false    # if this machine runs Pi-hole (see Traps)
 ```
 
 It prints a URL — open it, sign in, and the machine joins your tailnet.
+Later changes go through `tailscale set`, which changes only the
+setting you name.
 
 ```bash
 tailscale status          # who is on the tailnet
@@ -145,7 +149,7 @@ Printers, smart plugs, the router's admin page. Advertise your LAN from
 the server:
 
 ```bash
-sudo tailscale up --advertise-routes=192.168.1.0/24
+sudo tailscale set --advertise-routes=192.168.1.0/24
 ```
 
 Then approve the route in the admin console (**Machines → your server →
@@ -157,7 +161,7 @@ home LAN by its normal address.
 Useful on untrusted wifi, and makes you appear to be at home.
 
 ```bash
-sudo tailscale up --advertise-exit-node
+sudo tailscale set --advertise-exit-node
 ```
 
 Approve it in the console, then pick it in the client app. Note this
@@ -166,7 +170,7 @@ sends *all* your traffic through your home upload, so it is slower.
 ### Tailscale Serve — HTTPS without certificate work
 
 ```bash
-sudo tailscale serve --bg --https=443 http://localhost:8096
+sudo tailscale serve --bg --https=443 http://127.0.0.1:8096
 ```
 
 Gives a real, valid HTTPS certificate on your
@@ -204,7 +208,7 @@ Tailscale and a commercial VPN also compete for the same tunnel
 interface; most phones will only run one at a time.
 
 **Do not make the server use Tailscale's DNS.** On the machine running
-Pi-hole, keep `--accept-dns=false`. Otherwise the server asks Tailscale
+Pi-hole, keep `--accept-dns=false` (`sudo tailscale set --accept-dns=false`). Otherwise the server asks Tailscale
 for DNS, which routes `.home` back to Pi-hole, which is itself — a loop.
 Clients should use Tailscale DNS; the server should not.
 

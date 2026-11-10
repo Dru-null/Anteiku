@@ -178,8 +178,9 @@ git clone https://github.com/dru-null/Anteiku.git anteiku && cd anteiku
 ./doctor.sh
 ```
 
-It ends with a summary: blockers first (fix those before going on), then
-warnings (worth reading, not stopping for). Its output holds no
+It ends with a summary that counts the blockers (fix those before going
+on) and the warnings (worth reading, not stopping for); each one is
+explained in its section above. Its output holds no
 passwords, so it's safe to paste into an issue.
 
 **3. Pick and write.** `setup.sh` shows a list of services with a

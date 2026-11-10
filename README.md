@@ -132,7 +132,7 @@ Still stuck, or found something wrong: [open an issue](https://github.com/dru-nu
 - **Nothing updates unless you choose automatic updates.** Every image is pinned to the version that was tested; [`CHANGELOG.md`](CHANGELOG.md) says what each release changed. `setup.sh` asks whether to tell you about new releases (the default), install them by themselves, or neither.
 - **The update check sends nothing.** Once a week it asks GitHub for the newest release and reads its changelog. No IDs, no statistics, and nothing at all with updates off.
 - **One filesystem:** downloads and library share one `MEDIA_ROOT`, so imports are hardlinks, not copies. Split them and the disk fills twice as fast.
-- **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU, before each release. NVIDIA, AMD, ARM64 and rootless Docker are written from upstream docs and not yet run on hardware. [`docs/compatibility.md`](docs/compatibility.md) lists what has run where, and how.
+- **Tested:** every service together on x86_64, Ubuntu 26.04, Intel iGPU, before each release. NVIDIA and AMD transcoding, ARM64 and a rootless Docker deploy are written from upstream docs and not yet run. [`docs/compatibility.md`](docs/compatibility.md) lists what has run where, and how.
 
 ## Contributing
 

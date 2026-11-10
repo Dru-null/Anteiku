@@ -33,7 +33,8 @@ Re-run it whenever you add services.
 
 It is safe to re-run — anything already there by name is skipped.
 
-Example output for an eight-service install:
+The plan for a six-service install (Pi-hole, Jellyfin, qBittorrent,
+Radarr, Sonarr, Dozzle):
 
 ```
   Critical
@@ -48,6 +49,8 @@ Example output for an eight-service install:
       dozzle                 http://dozzle:8080/
   External
       Internet               ping 1.1.1.1
+
+  7 monitors across 5 groups
 ```
 
 Kuma has no REST API — only socket.io — so the script runs a throwaway
@@ -66,10 +69,10 @@ the UI afterwards if you like; `.env` is only used for the first setup.
 
 | Group | Holds | Why separate |
 |---|---|---|
-| **Critical** | Pi-hole, reverse proxy | If these are down, *everything* looks down. Check here first |
-| **Media** | Jellyfin, Navidrome, Kavita, Seerr | What the household notices |
+| **Critical** | Pi-hole, reverse proxy, Vaultwarden | If these are down, *everything* looks down. Check here first |
+| **Media** | Jellyfin, Navidrome, Kavita, Seerr, Calibre-Web, Immich (and its machine learning) | What the household notices |
 | **Acquisition** | *arrs, download client | Annoying when broken, nothing is on fire |
-| **Infra** | Dozzle, dashboards | Supporting cast |
+| **Infra** | Dozzle, ntfy | Supporting cast |
 | **Containers** | things with no HTTP (none in the kit today) | Checked by container state instead |
 | **External** | Internet ping | See below — the most useful one |
 
@@ -107,9 +110,13 @@ on that port inside Docker too (see `stacks/arr.md`).
 | Service | Path | Why |
 |---|---|---|
 | Jellyfin | `/health` | Purpose-built; proves the app works, not just that a port answers |
-| Navidrome | `/ping` | Same |
+| Navidrome, Immich machine learning | `/ping` | Same |
+| Immich | `/api/server/ping` | Same |
+| Vaultwarden | `/alive` | Same |
+| ntfy | `/v1/health` | Same |
+| Seerr | `/api/v1/status` | Same |
 | Pi-hole | `/admin/login` | `/` redirects in a way that hides failures |
-| most others | `/` | No health endpoint exists |
+| the others | `/` | No health endpoint used |
 
 Hitting `/` usually works, but often only proves a login page renders.
 Use a real health endpoint when the service offers one.
@@ -117,7 +124,7 @@ Use a real health endpoint when the service offers one.
 ### A 401 means up
 
 Accepted status codes are `200-299` and `300-399`, plus `401` for
-services that demand auth at the root.
+qBittorrent, which demands a login at the root.
 
 That is deliberate. For an **availability** check, a 401 means "up, and
 asking who you are" — the service is clearly alive. Only a 5xx or no

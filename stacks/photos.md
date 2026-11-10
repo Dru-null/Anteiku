@@ -180,9 +180,11 @@ produces an archive that looks fine and restores into corruption.
 
 **The photo files alone are not a full backup.** You would keep the
 images and lose every album, person and share. **Nor is the database
-alone**, and that is all `backup.sh` takes: it does not copy
-`PHOTOS_LOCATION`. Copy the files yourself with one `rsync` line; see
-[Your photos](../docs/backups.md#your-photos).
+alone**, and that is all `backup.sh`'s local backup takes: it does not
+copy `PHOTOS_LOCATION`. Copy the files yourself with one `rsync` line
+([Your photos](../docs/backups.md#your-photos)), or set up the
+[off-site copy](../docs/backups.md#off-site-copy-encrypted), which
+takes them too.
 
 **The Postgres image is version-locked to the server.** Immich ties
 them together and the tag naming changes. Before a major upgrade:

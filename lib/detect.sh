@@ -497,8 +497,8 @@ who_has_port() {
   fi
   if [ -z "$out" ]; then
     # Suggest the tool that is installed.
-    if have ss; then out="unidentified (try: sudo ss -lntup | grep :${p})"
-    else out="unidentified (try: sudo netstat -lntup | grep :${p})"; fi
+    if have ss; then out="unidentified (try: sudo ss -lntup | grep ':${p} ')"
+    else out="unidentified (try: sudo netstat -lntup | grep ':${p} ')"; fi
   fi
   echo "$out"
 }

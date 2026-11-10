@@ -53,13 +53,15 @@ Use something that cannot collide with the real internet.
 
 | Suffix | Verdict |
 |---|---|
-| `.home`, `.lan`, `.box` | **Good.** Reserved for exactly this |
-| `.internal` | Good, slightly longer |
+| `.internal` | **Good.** Reserved for private networks by ICANN (2024): it will never be a real TLD |
+| `.home.arpa` | Good, the IETF's name for home networks (RFC 8375); long to type |
+| `.home`, `.lan` | Widely used and not real TLDs today, but not reserved either |
 | A real domain you own | Best, and required for public HTTPS |
 | `.local` | **Never.** Reserved for mDNS/Bonjour; breaks Apple and Linux discovery in confusing ways |
-| `.dev`, `.app` | **Never.** Real TLDs with enforced HTTPS |
+| `.dev`, `.app`, `.box` | **Never.** Real TLDs (`.dev` and `.app` with enforced HTTPS) |
 
-This guide uses `.home`.
+This guide uses `.home`, because it is short; `.internal` is the safer
+choice for a new setup, and everything below works the same with it.
 
 ---
 
@@ -72,8 +74,11 @@ Pi-hole needs port 53. On most Ubuntu and Debian systems
 Check:
 
 ```bash
-sudo ss -lntup | grep :53
+sudo ss -lntup | grep ':53 '
 ```
+
+The space after `53` matters: without it the line also matches `:5353`
+(mDNS), which is not in Pi-hole's way.
 
 If it names `systemd-resolve`, free it:
 
@@ -272,8 +277,9 @@ real domain. Your choices:
 
 If you do want public certificates, NPM needs ports **80 and 443**
 reachable from the internet for the HTTP challenge. If `setup.sh` moved
-those because something else held them, `setup.sh` says so explicitly —
-automatic certificates will not work until they are free.
+443 because something else held it, it says automatic certificates
+will not work there. A moved 80 is shown like any other moved port
+(`ports.md`), but the challenge needs 80 as well.
 
 **Do not forward ports to get at this from outside.** A mesh VPN gives
 you remote access with nothing exposed to the internet, takes about ten
