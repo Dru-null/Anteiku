@@ -278,10 +278,11 @@ SUDO=()
 if sudo -n /usr/bin/tar --version >/dev/null 2>&1; then
   SUDO=(sudo -n); good "passwordless sudo available (root-owned files included)"
 else
-  wrn "no passwordless sudo — root-owned config files will be SKIPPED."
-  note "Some services write config as root. Without sudo those files are"
-  note "silently missing from the archive, and you find out at restore"
-  note "time. To fix, allow tar without a password:"
+  wrn "no passwordless sudo — configs are read as you, not as root."
+  note "Some services write config as root. Those files you can read are"
+  note "backed up; one only root can read FAILS the backup, and tar names"
+  note "it under \"Configs\" below. To read every file, allow tar without a"
+  note "password:"
   note "  echo \"\$USER ALL=(root) NOPASSWD: /usr/bin/tar\" | sudo tee /etc/sudoers.d/backup"
 fi
 
