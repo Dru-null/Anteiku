@@ -1028,6 +1028,34 @@ if [ -e "$MEDIA_DEF" ]; then
 fi
 
 # ============================================================
+#  Laptop (T-023). Closing the lid suspends it, and every service with
+#  it. Only on a laptop whose lid isn't handled yet. Nothing outside this
+#  folder is changed: the commands are shown for you to run. Asked on a
+#  first run and with --reconfigure, like updates; otherwise (re-runs,
+#  --yes, --dry-run, no terminal) one line points at doctor.sh.
+# ============================================================
+detect_power
+if [ "$DET_CHASSIS" = laptop ]; then
+  h1 "Laptop"
+  case "$(lid_state)" in
+    runs|ac) ok "closing the lid keeps this laptop running (logind)." ;;
+    *)
+      warn "$(lid_says)"
+      if { [ "$RERUN" -eq 0 ] || [ "$RECONFIGURE" -eq 1 ]; } \
+         && [ "$ASSUME_YES" -eq 0 ] && [ "$DRY_RUN" -eq 0 ] && [ -t 0 ]; then
+        printf '  Show how to keep it running with the lid closed? %s[Y/n]%s ' "$C_B" "$C_RST"
+        read -r ans || ans=""
+        case "$ans" in
+          [nN]*) note "Skipped. ./doctor.sh shows it any time." ;;
+          *) lid_notes; battery_note ;;
+        esac
+      else
+        note "./doctor.sh shows how to keep it running with the lid closed."
+      fi ;;
+  esac
+fi
+
+# ============================================================
 #  Updates. Asked once: a re-run keeps the answer, --reconfigure asks
 #  again. update.sh only ever offers tested releases, never main.
 # ============================================================

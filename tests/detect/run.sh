@@ -68,7 +68,7 @@ trap 'rm -rf "$WORK"' EXIT
 # crontab, curl and git are update.sh's, not detection's: never reachable, so
 # no case can touch the host's crontab or the network. The one crontab a
 # case can get (crontab_lists) only answers -l, from a file.
-STUBBED="lspci ss netstat nproc getent docker timedatectl uname id tailscale df crontab curl git"
+STUBBED="lspci ss netstat nproc getent docker timedatectl uname id tailscale df crontab curl git busctl"
 REAL_ID="$(type -P id)"; RUN_UID="$("$REAL_ID" -u)"; RUN_GID="$("$REAL_ID" -g)"
 BASE="$WORK/base-bin"; mkdir -p "$BASE"
 declare -A seen=(); for t in $STUBBED; do seen[$t]=1; done
@@ -237,6 +237,15 @@ docker_store(){ # containerd (Docker 29's default) | classic; [Docker Root Dir]
   _frozen docker_store; echo "$1" > "$T/docker.store"; [ -n "${2:-}" ] && echo "$2" > "$T/docker.root"; return 0; }
 containerd_conf(){ _frozen containerd_conf; mkdir -p "$R/etc/containerd"; cat > "$R/etc/containerd/config.toml"; }
 no_tool()   { _frozen no_tool; local t; for t in "$@"; do rm -f "$FX/bin/$t"; done; }
+# Laptop (T-023). chassis <DMI type or text>: /sys/class/dmi/id/chassis_type.
+# supply <name> <Mains|USB|Battery> [online]: one /sys/class/power_supply entry.
+# logind <HandleLidSwitch> [HandleLidSwitchExternalPower]: what busctl reads
+# from the running logind (empty = unset); logind_down: busctl fails.
+chassis()   { _frozen chassis; mkdir -p "$R/sys/class/dmi/id"; echo "$1" > "$R/sys/class/dmi/id/chassis_type"; }
+supply()    { _frozen supply; local d="$R/sys/class/power_supply/$1"; mkdir -p "$d"; echo "$2" > "$d/type"
+              [ -z "${3:-}" ] || echo "$3" > "$d/online"; }
+logind()    { _frozen logind; echo "$1" > "$T/lid"; echo "${2:-}" > "$T/lid_ac"; rm -f "$T/logind.down"; }
+logind_down(){ _frozen logind_down; : > "$T/logind.down"; }
 
 # The machine every case starts from: Ubuntu 24.04 on x86_64, 16 GB,
 # no GPU, Docker running (default image store, no containerd config),
@@ -267,6 +276,19 @@ EOF
 case "${1:-}" in -r) cat "$T/kernel" ;; -m) cat "$T/arch" ;; *) odd "$@" ;; esac
 EOF
   _stub nproc <<< 'cat "$T/cores"'
+  # logind as a fresh Ubuntu has it: suspend, ExternalPower unset. Only the
+  # two lid properties are known; anything else is an odd call.
+  logind suspend ""
+  _stub busctl <<'EOF'
+M="get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager"
+case "$*" in
+  "$M HandleLidSwitch") f=lid ;;
+  "$M HandleLidSwitchExternalPower") f=lid_ac ;;
+  *) odd "$@" ;;
+esac
+[ -f "$T/logind.down" ] && { echo "Failed to get property HandleLidSwitch: Could not activate remote peer" >&2; exit 1; }
+printf 's "%s"\n' "$(cat "$T/$f")"
+EOF
   _stub timedatectl <<'EOF'
 [ "$*" = "show -p Timezone --value" ] || odd "$@"
 [ -f "$T/tz" ] && { cat "$T/tz"; exit 0; }
@@ -381,8 +403,9 @@ _env() {
 }
 # Everything lib/detect.sh gives the scripts, one KEY=value per line.
 PROBE='. lib/detect.sh
-detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker; detect_tailscale
-for v in DET_DISTRO DET_DISTRO_VER DET_KERNEL DET_ARCH DET_TZ DET_UID DET_GID DET_CPU DET_CORES \
+detect_os; detect_cpu; detect_mem; detect_gpu; detect_render; detect_docker; detect_tailscale; detect_power
+printf "lid=%s\n" "$(lid_state)"
+for v in DET_CHASSIS DET_CHASSIS_TYPE DET_AC DET_LID DET_LID_AC DET_DISTRO DET_DISTRO_VER DET_KERNEL DET_ARCH DET_TZ DET_UID DET_GID DET_CPU DET_CORES \
   DET_MEM_MIB DET_MEM_GIB DET_SWAP_MIB DET_SWAP_GIB DET_GPU_VENDORS DET_GPU_OTHER DET_NVIDIA_DRIVER DET_RENDER_GID DET_INTEL_RENDER DET_AMD_RENDER \
   DET_DOCKER_VER DET_DOCKER_NVIDIA DET_COMPOSE_VER DET_DOCKER_OK DET_DOCKER_ROOTLESS DET_IN_DOCKER_GROUP \
   DET_DOCKER_ROOT DET_DOCKER_STORE \
@@ -477,7 +500,7 @@ _check() { # label expected got
 }
 current() { CUR="$1"; printf '      %s (%s)\n' "$2" "$1" >> "$FX/report"; }   # to the end of the case
 
-# is <DET_X|pick|port.N|fs_of|fstype_of|free_gb|image_store|image_store_why> <value>
+# is <DET_X|pick|lid|port.N|fs_of|fstype_of|free_gb|image_store|image_store_why> <value>
 is() { _run probe; _check "$1" "$2" "$(sed -n "s/^$1=//p" "$FX/probe" | head -n 1)"; }
 # env_is KEY value / env_absent KEY: the .env setup.sh --dry-run would write
 _envline() { sed -n '/Configuration to write/,$p' "$FX/setup" | sed -n "s/^  $1=//p" | head -n 1; }
