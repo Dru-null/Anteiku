@@ -97,6 +97,11 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   denied`); it no longer does. The restore steps still remove them from
   an older backup.
   [docs/backups.md](docs/backups.md#what-is-deliberately-excluded)
+- `scripts/backup.sh`'s warning without passwordless sudo says what
+  happens: root-owned files you can read are backed up, and one only
+  root can read fails the backup. It used to say they were skipped.
+  Nginx Proxy Manager and ntfy have such a file from their first start.
+  [docs/backups.md](docs/backups.md#root-owned-files)
 - docs/backups.md "Full disaster recovery" is rewritten and tested as
   written. It extracted the configs into `appdata/`, which a fresh clone
   doesn't have, without root, and restored Immich's database into a

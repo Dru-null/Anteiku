@@ -419,12 +419,31 @@ check passes both.
 
 ## Root-owned files
 
-Several services write config as root. Without root, `tar` skips those
-files — and historically it did so **silently**, which is how people
-discover at restore time that their backup was incomplete.
+Several services write config as root. The script reads `appdata/`
+through `sudo -n` when `tar` may run as root without a password (`-n`
+never prompts, so cron cannot hang), and warns when it may not. Then
+the configs are read as you:
 
-The script uses `sudo -n` (never prompts, so cron cannot hang) and says
-loudly when it does not have it. To grant just what is needed:
+- a root-owned file you can read is backed up as usual
+- a file or folder only root can read **fails the backup**: under
+  "Configs", `FAILED` `could not archive configs (tar exit 2)` and
+  tar's line naming it (`npm/data/keys.json: Cannot open: Permission
+  denied`); the run ends "Backup finished WITH FAILURES". The
+  `appdata-configs.tar.gz` that run leaves is incomplete: don't restore
+  from it
+
+Which services do that, measured on the pinned versions in a test
+install, each started once with nothing set up. Files a service writes
+later, once you use it (certificates, say), were not checked:
+
+| Service | Without sudo |
+|---|---|
+| Nginx Proxy Manager | fails: `npm/data/keys.json` is root's, mode 600 |
+| ntfy | fails: `ntfy/cache/attachments` is root's, mode 700 (empty) |
+| Immich | backed up: its database folder isn't readable, and is left out ([What is deliberately excluded](#what-is-deliberately-excluded)) |
+| every other service | backed up (Kavita, Uptime Kuma and Vaultwarden write as root, but files anyone can read) |
+
+To grant just what is needed:
 
 ```bash
 echo "$USER ALL=(root) NOPASSWD: /usr/bin/tar" | sudo tee /etc/sudoers.d/backup
