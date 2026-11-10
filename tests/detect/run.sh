@@ -21,6 +21,8 @@
 #  of a known problem; its ticket is expected to change it.
 #
 #  Writes nothing outside a mktemp dir. Needs bash and coreutils only.
+#  Run it as your user. Root can write to any folder, so the cases that
+#  need one it can't write to are skipped as root (SKIP), never passed.
 # ============================================================
 # The stand-ins below are code written into files, so their $ must stay
 # literal: single quotes on purpose.
@@ -62,6 +64,13 @@ fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+
+# Root writes to a mode-555 folder and a mode-444 file, so a case that
+# needs one (locked_dir, tmp_locked, ports_md_blocked readonly) can't
+# hold. As root such a case is SKIP: named, its checks left out of the
+# totals, never shown as ok. $EUID, not id: cases replace id.
+AS_ROOT=0; [ "$EUID" -eq 0 ] && AS_ROOT=1
+[ "$AS_ROOT" -eq 1 ] && echo "Running as root: the cases that need a folder or file root can't write to are skipped (SKIP), not passed. Run as your user to check them."
 
 # Tools a case controls. None of them is reachable from the real PATH:
 # a case gets a stand-in, or nothing (a "missing tool" case).
@@ -141,8 +150,10 @@ shell_env()    { _frozen shell_env; echo "$1" >> "$T/shell.env"; }   # KEY=value
 setup_env()    { _frozen setup_env; echo "$1" >> "$T/setup.env"; }   # KEY=value for setup.sh and setup_real, after their defaults
 # locked_dir <path>: an empty folder nobody may write to (mode 555). The
 # case's paths are real folders: -w, mkdir and stat see the real thing.
+_as_user()     { [ "$AS_ROOT" -eq 1 ] && printf '%s\n' "$1" >> "$FX/skip"; return 0; }   # why root can't hold this case
 locked_dir()   {
   _frozen locked_dir
+  _as_user "locked_dir: root can write to a mode-555 folder"
   if ! { mkdir -p "$1" && chmod 555 "$1"; }; then _fail "locked_dir: could not make $1"; return 0; fi
   [ -w "$1" ] && _fail "locked_dir: $1 is still writable (running as root?)"; return 0
 }
@@ -152,6 +163,7 @@ locked_dir()   {
 # the case's dir is a write the host might take.
 ports_md_blocked() {
   _frozen ports_md_blocked
+  [ "${1:-}" = readonly ] && _as_user "ports_md_blocked readonly: root can write to a mode-444 file"
   case "${1:-folder}" in folder|readonly) echo "${1:-folder}" > "$T/ports.blocked" ;;
     *) _fail "ports_md_blocked: unknown kind '$1'" ;; esac
 }
@@ -160,7 +172,7 @@ ports_md_blocked() {
 # a real failed write, with no mount and no /dev/full (T-083).
 # tmp_locked: setup_real's TMPDIR is an empty mode-555 folder, so mktemp
 # fails before anything is written (T-083).
-tmp_locked()   { _frozen tmp_locked; : > "$T/tmp.locked"; }
+tmp_locked()   { _frozen tmp_locked; _as_user "tmp_locked: root can write to a mode-555 folder"; : > "$T/tmp.locked"; }
 file_limit()   { _frozen file_limit; [[ "${1:-}" =~ ^[1-9][0-9]*$ ]] || { _fail "file_limit: KiB expected, got '${1:-}'"; return 0; }; echo "$1" > "$T/file.limit"; }
 install_env()  { # stdin: more .env lines for the install (after 'installed')
   _frozen install_env; [ -d "$FX/install" ] || { _fail "install_env: needs the 'installed' fixture"; return 0; }
@@ -558,9 +570,14 @@ for fn in "${CASES[@]}"; do
 done
 wait
 
-TOTAL_CHK=0; TOTAL_FAIL=0; declare -A CURRENT=()
+TOTAL_CHK=0; TOTAL_FAIL=0; SKIPPED=0; declare -A CURRENT=()
 for fn in "${CASES[@]}"; do
   FX="$WORK/fx/${fn#case_}"
+  if [ -s "$FX/skip" ]; then
+    SKIPPED=$((SKIPPED+1))
+    printf 'SKIP %-34s as root: %s\n' "${fn#case_}" "$(sort -u "$FX/skip" | paste -sd'|' | sed 's/|/; /g')"
+    continue
+  fi
   if ! IFS='|' read -r n f where < "$FX/result" 2>/dev/null; then
     n=0; f=1; where="?"; echo "      FAIL the case did not finish" >> "$FX/report"
   fi
@@ -576,6 +593,7 @@ for fn in "${CASES[@]}"; do
 done
 
 cur="$(printf '%s\n' "${!CURRENT[@]}" | sort | paste -sd' ')"
-printf '%s cases, %s checks, %s failed (Mocked)%s\n' "${#CASES[@]}" "$TOTAL_CHK" "$TOTAL_FAIL" \
+skipped=""; [ "$SKIPPED" -gt 0 ] && skipped=", $SKIPPED skipped as root"
+printf '%s cases, %s checks, %s failed%s (Mocked)%s\n' "${#CASES[@]}" "$TOTAL_CHK" "$TOTAL_FAIL" "$skipped" \
   "${cur:+; current output that is expected to change: $cur}"
 [ "$TOTAL_FAIL" -eq 0 ]
