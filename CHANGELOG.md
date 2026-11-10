@@ -180,6 +180,9 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   size (about 1.1 GB; the yaml said 1.5); `.env.example` gave automatic
   updates as "Sunday night": they run with the weekly check, Sundays at
   04:30.
+- `tests/detect/run.sh` run as root says so first, and skips the cases
+  that need a folder or file root can't write to, naming each, instead
+  of failing 24 checks. They are left out of the totals, never passed.
 
 ---
 

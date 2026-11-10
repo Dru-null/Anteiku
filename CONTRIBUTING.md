@@ -114,6 +114,9 @@ bash tests/detect/run.sh --list
 bash tests/detect/run.sh gpu_amd
 ```
 
+Run it as your user. As root, the cases that need a folder or file
+root can't write to are skipped and named (`SKIP`), not passed.
+
 These results are *mocked*: they show what the scripts do with that
 input, not that the hardware works. A case from your own machine is
 welcome. Copy only hardware lines: no host or user names, addresses or
