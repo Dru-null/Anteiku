@@ -539,12 +539,50 @@ step "first run, --yes" yes1 "$rc"
 if [ -f "$S/.env" ]; then
   [ "$(stat -c %a "$S/.env")" = "600" ] || err ".env is not mode 600"
   cp "$S/.env" "$WORK/env1"
+  # Lines setup.sh doesn't write are the user's (T-094): a re-run keeps
+  # them in a block at the end, each once, by name on screen, never the
+  # value. An ntfy elsewhere (ntfy not selected), a key of their own, a
+  # changed retention; then a line and a comment added inside the block.
+  # A key twice: the first copy is kept, as the loader reads it. A GPU path
+  # that isn't this machine's is recomputed, never carried.
+  OWN_V="chk$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+  printf 'CHECK_OWN_KEY=%s\nNTFY_URL=https://ntfy.invalid\nNTFY_TOPIC=chk-topic\n' "$OWN_V" >> "$S/.env"
+  printf 'CHECK_OWN_KEY=second\nAMD_RENDER_PATH=/dev/dri/chk\n' >> "$S/.env"
+  sed -i 's/^BACKUP_RETAIN_DAYS=.*/BACKUP_RETAIN_DAYS=45/; s/^UMASK=.*/UMASK=022/' "$S/.env"
+  run_setup own1 --yes; rc=$?
+  step "re-run, lines setup.sh doesn't write" own1 "$rc"
+  printf '# a comment of the user\nCHECK_IN_BLOCK=1\n' >> "$S/.env"
+  run_setup own2 --yes; rc=$?
+  step "re-run, a line added to the kept block" own2 "$rc"
+  cp "$S/.env" "$WORK/env-own2"
+  run_setup own3 --yes; rc=$?
+  step "re-run, nothing changed" own3 "$rc"
+  miss=""
+  for l in UMASK=022 "CHECK_OWN_KEY=$OWN_V" NTFY_URL=https://ntfy.invalid NTFY_TOPIC=chk-topic \
+           BACKUP_RETAIN_DAYS=45 CHECK_IN_BLOCK=1 '# a comment of the user'; do
+    grep -qxF -- "$l" "$S/.env" || miss="$miss ${l%%=*}"
+  done
+  dup="$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$S/.env" | LC_ALL=C sort | uniq -d | tr -d = | tr '\n' ' ')"
+  if [ -n "$miss" ]; then err "re-run did not keep lines it doesn't write:$miss"
+  elif [ -n "$dup" ]; then err "re-run wrote a key twice: $dup"
+  elif grep -qx 'AMD_RENDER_PATH=/dev/dri/chk' "$S/.env"; then err "re-run carried a value it recomputes: AMD_RENDER_PATH"
+  elif grep -qF -- "$OWN_V" "$WORK/own1.log" "$WORK/own2.log" "$WORK/own3.log"; then err "re-run printed the value of a line it kept"
+  elif ! grep -q 'Kept from your earlier' "$WORK/own3.log" \
+    || ! grep -qE '^ +CHECK_OWN_KEY NTFY_URL NTFY_TOPIC CHECK_IN_BLOCK$' "$WORK/own3.log"; then
+    err "re-run did not name the lines it kept"; grep -A2 'Kept from' "$WORK/own3.log" | indent
+  elif ! cmp -s <(tail -n +2 "$WORK/env-own2") <(tail -n +2 "$S/.env"); then err "a re-run with nothing new changed .env"
+  else ok "re-run kept 7 lines it doesn't write, each once, named, values not shown; the next re-run changed nothing"; fi
   # Re-runs are how people add services. Picking needs a terminal, so
   # mark services installed in .env instead: setup.sh then generates
   # their secrets and ports as on a real add. (--tui covers the picker.)
   sed -i "s/^COMPOSE_PROFILES=\(.*\)/COMPOSE_PROFILES=\1,ntfy,vaultwarden/" "$S/.env"
   run_setup yes2 --yes; rc=$?
   step "re-run, + ntfy and vaultwarden" yes2 "$rc"
+  # ntfy selected now: NTFY_URL is its own again, NTFY_TOPIC still the user's.
+  if [ "$(grep -c '^NTFY_URL=' "$S/.env")" != 1 ] || ! grep -q '^NTFY_URL=http://localhost:' "$S/.env" \
+     || [ "$(grep -c '^NTFY_TOPIC=' "$S/.env")" != 1 ] || ! grep -qx 'NTFY_TOPIC=chk-topic' "$S/.env"; then
+    err "with ntfy selected: want one NTFY_URL (local) and one NTFY_TOPIC (kept)"; grep '^NTFY_\(URL\|TOPIC\)=' "$S/.env" | indent
+  else ok "with ntfy selected: NTFY_URL local, NTFY_TOPIC kept, each once"; fi
   secrets > "$WORK/secrets1"
   sed -i "s/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=$ALL/" "$S/.env"
   # A version override is how users roll back; a re-run must keep it.

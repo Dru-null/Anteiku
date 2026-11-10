@@ -288,7 +288,8 @@ A backup that silently stopped running six weeks ago looks exactly like
 one that is working perfectly: you hear nothing either way. If success
 is also announced, a missing Sunday message is itself the alarm.
 
-Set `NTFY_URL` and `NTFY_TOPIC` in `.env` to get phone pushes. Without
+Set `NTFY_URL` and `NTFY_TOPIC` in `.env` to get phone pushes (a
+`setup.sh` re-run keeps them, ntfy installed here or not). Without
 them it still runs and logs to `backup-logs/` in this folder (set
 `BACKUP_LOG_DIR` in `.env` to log elsewhere); it just cannot tell you.
 

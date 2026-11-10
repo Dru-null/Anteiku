@@ -1160,6 +1160,17 @@ case_env_bak_write_fails() {   # the old .env (over 2 KiB of comments a re-run d
   real_lacks "backed up to"
 }
 
+case_env_kept_write_fails() {   # the generated part fits under 2 KiB, the kept block (a 2.5 KB line of the user's) doesn't: stop, old .env as it was (T-094)
+  file_limit 2
+  refuses
+  K_OLD="$(printf 'COMPOSE_PROFILES=sonarr\nPORT_SONARR=8989\nMY_OWN_KEY=%s' "$(printf '%2500s' '' | tr ' ' x)")"
+  printf '%s\n' "$K_OLD" | prev_env
+  real err "could not write the configuration: File too large. .env was not changed."
+  real_file "$FX/real/.env" "$K_OLD"
+  real_lacks "wrote .env"
+  real_lacks "MY_OWN_KEY"
+}
+
 case_ports_md_readonly() {   # a ports.md that can't be opened for writing: same errno as one another user owns (T-083)
   ports_md_blocked readonly
   real warn "could not write ports.md: Permission denied."
