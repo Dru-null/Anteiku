@@ -51,7 +51,8 @@ banner "anteiku $S_DOT setup" "pick your services, write your config"
 #
 #  So every value in an existing .env is kept, unless you override it in
 #  the environment for this run. Only values derived from your hardware
-#  or from this run's selection are recomputed.
+#  or from this run's selection are recomputed. Lines this script doesn't
+#  write (a key of your own) are kept too, in a block at the end.
 # ============================================================
 # Secrets this script generates. They come from an existing .env or are
 # generated fresh - NEVER from your shell environment. A password exported
@@ -1109,7 +1110,7 @@ W_FAIL=0; trap 'W_FAIL=1' ERR
   echo "PUID=$DET_UID"
   echo "PGID=$DET_GID"
   echo "TZ=$DET_TZ"
-  echo "UMASK=002"
+  echo "UMASK=${UMASK:-002}"
   echo
   echo "APPDATA=$APPDATA_DEF"
   echo "MEDIA_ROOT=$MEDIA_DEF"
@@ -1129,7 +1130,7 @@ W_FAIL=0; trap 'W_FAIL=1' ERR
   else
     echo "# BACKUP_DEST=/mnt/backup-drive   <- set this, then backups need no argument"
   fi
-  echo "BACKUP_RETAIN_DAYS=30"
+  echo "BACKUP_RETAIN_DAYS=${BACKUP_RETAIN_DAYS:-30}"
   echo "# Encrypted off-site copy, made by backup.sh after the local one."
   if [ -n "${OFFSITE_REPO:-}" ]; then
     for k in $OFFSITE_KEYS; do
@@ -1169,8 +1170,8 @@ W_FAIL=0; trap 'W_FAIL=1' ERR
   if _sel_has immich; then
     echo "# Immich. PHOTOS_LOCATION is deliberately NOT under MEDIA_ROOT."
     echo "PHOTOS_LOCATION=${PHOTOS_DEF}"
-    echo "IMMICH_DB_USER=immich"
-    echo "IMMICH_DB_NAME=immich"
+    echo "IMMICH_DB_USER=${IMMICH_DB_USER:-immich}"
+    echo "IMMICH_DB_NAME=${IMMICH_DB_NAME:-immich}"
     echo "IMMICH_DB_PASSWORD=${IMMICH_DB_PASSWORD:-$(_genpw)}"
     if _sel_has immich-ml; then
       echo "IMMICH_ML_URL=http://${STACK_PREFIX}immich-machine-learning:3003"
@@ -1231,15 +1232,62 @@ exit "$W_FAIL"
 # shellcheck disable=SC2181
 [ $? -eq 0 ] || _wfail "the configuration" "$W_ERR"
 
+# Lines this run didn't write (T-094): a key of your own, an NTFY_URL for
+# an ntfy elsewhere (written above only when ntfy is selected here), the
+# keys of a service --reconfigure removed. A re-run used to drop them all
+# without a word. They go in one block at the end, and so does anything
+# you add inside it, comments too. Kept as they were, the first copy of a
+# key only (the loader above reads the first one too). Not carried: keys
+# written above (their value came from the old .env already), and keys
+# derived from this machine, which were recomputed. Comments outside the
+# block are setup.sh's own and are rewritten.
+KEPT_HEAD="# Kept from your earlier .env: setup.sh does not write these."
+KEPT_HELP="# Add your own lines below this one: every re-run keeps them."
+KEPT_DERIVED=" COMPOSE_FILE IMMICH_ML_URL RENDER_GID INTEL_RENDER_PATH AMD_RENDER_PATH PUID PGID "
+kept_lines() { # old-env new-env: prints the block, nothing if there is none
+  local line k blk=0 seen=" " written kept=()
+  [ -r "$1" ] || return 0
+  written=" $(sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$2" | tr '\n' ' ')"
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = "$KEPT_HEAD" ]; then blk=1; continue; fi
+    if [ "$blk" -eq 1 ] && [ "$line" = "$KEPT_HELP" ]; then continue; fi
+    case "$line" in
+      ''|'#'*) [ "$blk" -eq 1 ] && kept+=("$line"); continue ;;
+    esac
+    k="${line%%=*}"
+    case "$written" in *" $k "*) continue ;; esac
+    case "$seen" in *" $k "*) continue ;; esac
+    if [ "$blk" -eq 0 ]; then case "$KEPT_DERIVED" in *" $k "*) continue ;; esac; fi
+    seen="$seen$k "; kept+=("$line")
+  done < "$1"
+  [ "${#kept[@]}" -gt 0 ] || return 0
+  printf '\n%s\n%s\n' "$KEPT_HEAD" "$KEPT_HELP" && printf '%s\n' "${kept[@]}"
+}
+# Read in full first, then appended: the block is built from $TMP's keys.
+# (A blank line at its very end is lost here, once; the rest is exact.)
+KEPT_BLOCK="$(kept_lines "$ENV_FILE" "$TMP")"
+if [ -n "$KEPT_BLOCK" ] && ! W_ERR="$(printf '%s\n' "$KEPT_BLOCK" 2>&1 >> "$TMP")"; then
+  _wfail "the configuration" "$W_ERR"
+fi
+# Names only on screen: a line of your own may well be a password.
+KEPT_KEYS="$(awk -v h="$KEPT_HEAD" 'f && /^[A-Za-z_][A-Za-z0-9_]*=/ { sub(/=.*/, ""); printf "%s ", $0 } $0 == h { f = 1 }' "$TMP")"
+KEPT_OTHER="$(awk -v h="$KEPT_HEAD" -v k="$KEPT_HELP" 'f && NF && $0 != k && !/^[A-Za-z_][A-Za-z0-9_]*=/ { n++ } $0 == h { f = 1 } END { print n + 0 }' "$TMP")"
+
 # Never show secrets on screen: people paste this output into issues and
 # chats. They are in the file itself, which is mode 600.
 SECRET_RE="${SECRET_KEYS// /|}"
 # Comments muted, keys coloured; both are no-ops without colour.
-sed -E "s/^(${SECRET_RE})=.*/\1=${C_GREY}<hidden>${C_RST}/
+awk -v h="$KEPT_HEAD" '$0 == h { exit } { print }' "$TMP" |
+  sed -E "s/^(${SECRET_RE})=.*/\1=${C_GREY}<hidden>${C_RST}/
         s/^(#.*)/${C_NOTE}\1${C_RST}/
         s/^([A-Z0-9_]+)=/${C_INF}\1${C_RST}=/
-        s/^/  /" "$TMP"
+        s/^/  /"
 note "Passwords are hidden here. They are in $ENV_FILE (readable only by you)."
+if [ -n "$KEPT_KEYS" ] || [ "$KEPT_OTHER" -gt 0 ]; then
+  info "Kept from your earlier $ENV_FILE, in a block at its end (values not shown):"
+  [ -z "$KEPT_KEYS" ] || note "  ${KEPT_KEYS% }"
+  [ "$KEPT_OTHER" -eq 0 ] || note "  and $KEPT_OTHER other line(s): comments, or not KEY=value"
+fi
 if [ "${#OVERRIDES[@]}" -gt 0 ]; then
   warn "${#OVERRIDES[@]} service(s) held at a version override: ${OVERRIDES[*]%%=*}"
   note "They won't move with the pinned versions until you delete those lines."

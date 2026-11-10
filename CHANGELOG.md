@@ -109,6 +109,13 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   files used to stay in the temporary folder, and after a `kill` restic
   kept running in its container, for up to 15 minutes if it was
   retrying. `backup-cron.sh` still reports the run as failed.
+- A `setup.sh` re-run keeps the `.env` lines it doesn't write itself: a
+  key of your own, `BACKUP_LOG_DIR`, `NTFY_URL` and `NTFY_TOPIC` for an
+  ntfy you run elsewhere. It used to drop them without a word, and set
+  `BACKUP_RETAIN_DAYS` and `UMASK` back to their defaults. They go in a
+  block at the end of `.env`; anything you add inside it is kept too.
+  The output names them, without their values. Comments outside that
+  block are setup.sh's own and are rewritten.
 
 ---
 

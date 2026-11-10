@@ -19,7 +19,7 @@ Named after a café where anyone could find a seat and a place to start.
 - **Reads your machine first.** `doctor.sh` surveys CPU, RAM, GPU, ports and disks, and writes nothing.
 - **Lets you pick.** 21 services in a full-screen list, a small starter set ticked. Taken ports shift to the next free one; `ports.md` records what each service got.
 - **Fits the hardware.** An Intel, NVIDIA or AMD GPU is wired into Jellyfin for transcoding; without one, it runs on the CPU.
-- **Re-runs safely.** Installed services are locked, so a re-run only adds. Passwords, ports and paths stay as they were.
+- **Re-runs safely.** Installed services are locked, so a re-run only adds. Passwords, ports, paths and lines you added to `.env` stay as they were.
 - **Watches and backs up.** Uptime monitors are generated from what you installed. Backups cover configs, secrets and databases.
 
 Nothing starts by itself. `setup.sh` writes the config and stops; you read it, then run compose.
