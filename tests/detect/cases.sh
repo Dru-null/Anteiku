@@ -1522,3 +1522,121 @@ EOF
   doctor kv Memory "2.8 GiB (swap 0.0 GiB)"
   doctor err "$M_UNDER4"
 }
+
+# ------------------------------------------------------------ laptop (T-023)
+# Lid lines doctor.sh and setup.sh share; the commands are printed, never run.
+L_LID_STOPS='Closing the lid stops this laptop (logind: suspend), and every service with it.'
+L_LID_UNKNOWN="Closing a laptop's lid usually suspends it, and every service with it (logind's setting couldn't be read)."
+L_LID_DROPIN='To keep it running with the lid closed, a logind drop-in (as root):'
+L_LID_TEE="  printf '[Login]\\nHandleLidSwitch=ignore\\nHandleLidSwitchExternalPower=ignore\\n' | sudo tee /etc/systemd/logind.conf.d/60-anteiku-lid.conf"
+L_LID_BATTERY='Keep it plugged in. A battery kept full all the time may age faster:'
+L_LID_SETUP_OK='closing the lid keeps this laptop running (logind).'
+L_LID_POINTER='./doctor.sh shows how to keep it running with the lid closed.'
+
+case_laptop_lid_suspends() {   # a laptop as Ubuntu ships it, on AC: doctor explains and prints the drop-in; setup --yes only points at doctor
+  chassis 10; supply ACAD Mains 1; supply BAT1 Battery
+  is DET_CHASSIS laptop; is DET_CHASSIS_TYPE 10; is DET_AC on; is DET_LID suspend; is DET_LID_AC ""; is lid stops
+  doctor kv Chassis "laptop (DMI type 10), on AC"
+  doctor warn "$L_LID_STOPS"
+  doctor note "$L_LID_DROPIN"
+  doctor note "$L_LID_TEE"
+  doctor note "$L_LID_BATTERY"
+  setup warn "$L_LID_STOPS"
+  setup note "$L_LID_POINTER"
+  setup_lacks "sudo tee"
+  real warn "$L_LID_STOPS"
+  real note "$L_LID_POINTER"
+  real_lacks "sudo tee"
+}
+
+case_laptop_lid_ignored() {   # this host's shape (S53, read only): Notebook on AC, logind ignores the lid: no commands, no pointer
+  from 'captured: the maintainer server (laptop, DMI 10, Mains online, logind lid ignore), 2026-11-10, read only'
+  chassis 10; supply ACAD Mains 1; supply BAT1 Battery; logind ignore ignore
+  is lid runs
+  doctor ok "Lid: closing it keeps this laptop running (logind: ignore)."
+  doctor note "$L_LID_BATTERY"
+  doctor_lacks "sudo tee"
+  doctor_lacks "Closing the lid"
+  setup ok "$L_LID_SETUP_OK"
+  setup_lacks "$L_LID_POINTER"
+}
+
+case_laptop_lock_only() {   # HandleLidSwitch=lock only locks the screen: still running
+  chassis 9; supply AC Mains 1; logind lock ""
+  is lid runs
+  doctor ok "Lid: closing it keeps this laptop running (logind: lock)."
+  doctor_lacks "sudo tee"
+}
+
+case_laptop_on_battery_ac_only() {   # ignored on AC only, running on battery now: says both, warns about the battery
+  chassis 9; supply AC Mains 0; supply BAT0 Battery; logind suspend ignore
+  is DET_AC battery; is lid ac
+  doctor kv Chassis "laptop (DMI type 9), on battery"
+  doctor ok "Lid: plugged in, closing it keeps this laptop running (logind: ignore)."
+  doctor note "On battery it doesn't (logind: suspend)."
+  doctor warn "On battery now: when it runs out, every service stops."
+  doctor_lacks "sudo tee"
+  setup ok "$L_LID_SETUP_OK"
+}
+
+case_laptop_ac_suspends() {   # ignored on battery, suspend on AC (ExternalPower set): the AC action is named
+  chassis 10; supply ACAD Mains 1; logind ignore suspend
+  is lid stops
+  doctor warn "Plugged in, closing the lid stops this laptop (logind: suspend), and every service with it."
+  doctor note "$L_LID_TEE"
+}
+
+case_laptop_ac_hibernates() {   # suspend on battery, hibernate on AC, plugged in: the action that applies now is named
+  chassis 10; supply ACAD Mains 1; logind suspend hibernate
+  doctor warn "Closing the lid stops this laptop (logind: hibernate), and every service with it."
+}
+
+case_laptop_usb_c_convertible() {   # Convertible (31) on a USB-C supply: a laptop, on AC
+  chassis 31; supply ucsi-source-psy-USBC000:001 USB 1
+  is DET_CHASSIS laptop; is DET_AC on
+  doctor kv Chassis "laptop (DMI type 31), on AC"
+  doctor warn "$L_LID_STOPS"
+}
+
+case_laptop_logind_unreadable() {   # busctl fails (no logind running), no power supply: unknown, commands still shown
+  chassis 14; logind_down
+  is DET_AC unknown; is DET_LID ""; is lid unknown
+  doctor kv Chassis "laptop (DMI type 14)"
+  doctor warn "$L_LID_UNKNOWN"
+  doctor note "$L_LID_TEE"
+  setup warn "$L_LID_UNKNOWN"
+}
+
+case_laptop_no_busctl() {   # no busctl at all (no systemd): unknown, never an error
+  chassis 8; no_tool busctl
+  is lid unknown
+  doctor warn "$L_LID_UNKNOWN"
+}
+
+case_chassis_desktop() {   # a desktop, logind's default suspend on the lid: nothing about a lid or a battery
+  chassis 3
+  is DET_CHASSIS other
+  doctor kv Chassis "not a laptop (DMI type 3)"
+  doctor_lacks "the lid"; doctor_lacks "Lid:"; doctor_lacks "battery"; doctor_lacks "sudo tee"
+  setup_lacks "Laptop"; setup_lacks "the lid"
+  real_lacks "Laptop"; real_lacks "the lid"
+}
+
+case_chassis_vm_other() {   # QEMU reports 1 (Other): not a laptop
+  chassis 1
+  doctor kv Chassis "not a laptop (DMI type 1)"
+  doctor_lacks "the lid"; setup_lacks "Laptop"
+}
+
+case_chassis_no_dmi() {   # no DMI (most ARM boards, the default machine): unknown, nothing said about a lid
+  is DET_CHASSIS unknown; is DET_CHASSIS_TYPE ""
+  doctor kv Chassis "unknown (no DMI chassis type)"
+  doctor_lacks "the lid"; setup_lacks "Laptop"
+}
+
+case_chassis_not_a_number() {   # a chassis_type that isn't a number: unknown, never a laptop
+  chassis "Notebook"
+  is DET_CHASSIS unknown
+  doctor kv Chassis "unknown (no DMI chassis type)"
+  doctor_lacks "the lid"
+}

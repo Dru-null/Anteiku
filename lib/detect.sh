@@ -379,6 +379,77 @@ compose_too_old() {
 }
 compose_old_msg() { echo "Compose $DET_COMPOSE_VER is too old: this repo needs $COMPOSE_MIN or newer."; }
 
+# --- laptop: chassis, power, lid (T-023) ------------------------------
+# A laptop used as a server suspends when its lid closes, and every
+# service stops with it. Read only: the DMI chassis type, the power
+# supplies, and logind's running lid settings (busctl, no root needed).
+# Chassis types (SMBIOS 7.4.1): 8 Portable, 9 Laptop, 10 Notebook,
+# 14 Sub Notebook, 31 Convertible, 32 Detachable; all have a lid. No DMI
+# (most ARM boards): unknown, and nothing is said about a lid.
+detect_power() {
+  local R="${ANTEIKU_DETECT_ROOT:-}" p sup=0
+  DET_CHASSIS=unknown; DET_CHASSIS_TYPE=""; DET_AC=unknown
+  DET_CHASSIS_TYPE="$(cat "$R/sys/class/dmi/id/chassis_type" 2>/dev/null)"
+  case "$DET_CHASSIS_TYPE" in
+    8|9|10|14|31|32) DET_CHASSIS=laptop ;;
+    ''|*[!0-9]*) DET_CHASSIS_TYPE="" ;;
+    *) DET_CHASSIS=other ;;
+  esac
+  # On AC: a mains or USB-C supply that is online; none online: battery.
+  for p in "$R"/sys/class/power_supply/*; do
+    case "$(cat "$p/type" 2>/dev/null)" in
+      Mains|USB) sup=1; [ "$(cat "$p/online" 2>/dev/null)" = 1 ] && DET_AC=on ;;
+    esac
+  done
+  [ "$DET_AC" = unknown ] && [ "$sup" -eq 1 ] && DET_AC=battery
+  # logind: HandleLidSwitch acts on battery, and on AC too unless
+  # HandleLidSwitchExternalPower is set (empty = unset, logind.conf(5)).
+  DET_LID=""; DET_LID_AC=""
+  if have busctl; then
+    DET_LID="$(_logind HandleLidSwitch)"; DET_LID_AC="$(_logind HandleLidSwitchExternalPower)"
+  fi
+  return 0
+}
+_logind() {
+  busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager "$1" 2>/dev/null \
+    | sed -n 's/^s "\([a-z-]*\)"$/\1/p'
+}
+# lid_state -> runs (lid closed: keeps running, AC or battery), ac (only
+# on AC), stops, or unknown (logind's setting couldn't be read). "lock"
+# only locks the screen: it keeps running too.
+_lid_runs() { case "$1" in ignore|lock) return 0 ;; esac; return 1; }
+lid_state() {
+  [ -n "$DET_LID" ] || { echo unknown; return 0; }
+  if _lid_runs "$DET_LID" && _lid_runs "${DET_LID_AC:-$DET_LID}"; then echo runs
+  elif _lid_runs "${DET_LID_AC:-$DET_LID}"; then echo ac
+  else echo stops; fi
+}
+# lid_says: one sentence on what closing the lid does now (stops/unknown):
+# the AC setting on AC, else the battery one.
+lid_says() {
+  local ac="${DET_LID_AC:-$DET_LID}" a="$DET_LID"
+  [ "$DET_AC" = on ] && a="$ac"
+  if [ -z "$DET_LID" ]; then
+    echo "Closing a laptop's lid usually suspends it, and every service with it (logind's setting couldn't be read)."
+  elif _lid_runs "$DET_LID"; then
+    echo "Plugged in, closing the lid stops this laptop (logind: $ac), and every service with it."
+  else
+    echo "Closing the lid stops this laptop (logind: $a), and every service with it."
+  fi
+}
+# The commands, for the user to run: nothing here writes outside the repo.
+lid_notes() {
+  note "To keep it running with the lid closed, a logind drop-in (as root):"
+  note "  sudo mkdir -p /etc/systemd/logind.conf.d"
+  note "  printf '[Login]\\nHandleLidSwitch=ignore\\nHandleLidSwitchExternalPower=ignore\\n' | sudo tee /etc/systemd/logind.conf.d/60-anteiku-lid.conf"
+  note "Then reboot. (sudo systemctl restart systemd-logind applies it too,"
+  note "but on a desktop it may end your session: save your work first.)"
+}
+battery_note() {
+  note "Keep it plugged in. A battery kept full all the time may age faster:"
+  note "if your laptop's firmware or power settings offer a charge limit, use it."
+}
+
 # --- remote access ----------------------------------------------------
 detect_tailscale() {
   DET_TS_INSTALLED=0; DET_TS_UP=0; DET_TS_IP=""; DET_TS_NAME=""

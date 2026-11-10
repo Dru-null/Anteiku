@@ -18,7 +18,7 @@ esac; done
 
 banner "anteiku $S_DOT doctor" "read-only: what you have, what works, what will bite"
 
-detect_os; detect_cpu; detect_mem; detect_gpu; detect_docker; detect_image_store; detect_tailscale
+detect_os; detect_cpu; detect_mem; detect_gpu; detect_docker; detect_image_store; detect_tailscale; detect_power
 
 # ---------------------------------------------------------------- system
 h1 "System"
@@ -30,6 +30,11 @@ kv "CPU"       "$DET_CPU ($DET_CORES CPU$([ "$DET_CORES" = 1 ] || echo s))"
 kv "Memory"    "${DET_MEM_GIB} GiB (swap ${DET_SWAP_GIB} GiB)"
 kv "Timezone"  "$DET_TZ"
 kv "User"      "uid=$DET_UID gid=$DET_GID"
+case "$DET_CHASSIS" in
+  laptop) kv "Chassis" "laptop (DMI type $DET_CHASSIS_TYPE)$(case "$DET_AC" in on) echo ", on AC" ;; battery) echo ", on battery" ;; esac)" ;;
+  other)  kv "Chassis" "not a laptop (DMI type $DET_CHASSIS_TYPE)" ;;
+  *)      kv "Chassis" "unknown (no DMI chassis type)" ;;
+esac
 
 case "$DET_ARCH" in
   x86_64|amd64) ok "64-bit x86 — every image in this repo has a build for it." ;;
@@ -59,6 +64,19 @@ fi
 if [ "$DET_TZ" = "Etc/UTC" ] || [ -z "$DET_TZ" ]; then
   warn "Timezone looks unset (Etc/UTC). Schedules and logs will be in UTC."
   note "Set one: sudo timedatectl set-timezone Europe/Dublin"
+fi
+
+# A laptop as a server: its lid suspends it (T-023). Laptops only; this
+# reads logind's setting and prints the commands, it never changes them.
+if [ "$DET_CHASSIS" = laptop ]; then
+  case "$(lid_state)" in
+    runs) ok "Lid: closing it keeps this laptop running (logind: $DET_LID)." ;;
+    ac)   ok "Lid: plugged in, closing it keeps this laptop running (logind: ${DET_LID_AC})."
+          note "On battery it doesn't (logind: $DET_LID)." ;;
+    *)    warn "$(lid_says)"; lid_notes ;;
+  esac
+  [ "$DET_AC" = battery ] && warn "On battery now: when it runs out, every service stops."
+  battery_note
 fi
 
 # ----------------------------------------------------------------- tools

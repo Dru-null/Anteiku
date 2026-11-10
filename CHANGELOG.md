@@ -116,6 +116,14 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   block at the end of `.env`; anything you add inside it is kept too.
   The output names them, without their values. Comments outside that
   block are setup.sh's own and are rewritten.
+- On a laptop, `doctor.sh` and `setup.sh` say that closing the lid stops
+  the machine, and every service with it, unless logind is already set
+  to ignore it. They print the commands that change it (a logind
+  drop-in, then a reboot) for you to run; neither changes anything
+  outside this folder. `setup.sh` asks before showing them on a first
+  run, and with `--yes` only points at `doctor.sh`. `doctor.sh` also
+  shows the chassis and whether a laptop is on AC. Nothing is said on
+  other machines. [docs/compatibility.md](docs/compatibility.md)
 
 ---
 
