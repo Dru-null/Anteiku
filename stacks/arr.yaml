@@ -3,7 +3,7 @@
 # ============================================================
 #  WHAT THIS DOES NOT DO: this stack ships with NO indexers and no
 #  sources of any kind. Prowlarr starts empty. What you point it at is
-#  your decision and your responsibility. See "Scope and legality" in
+#  your decision and your responsibility. See the note at the top of
 #  the README.
 # ============================================================
 #  PATH CONTRACT — do not break this:

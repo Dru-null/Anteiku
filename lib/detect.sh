@@ -361,7 +361,7 @@ compose_missing() { [ -n "$DET_DOCKER_VER" ] && [ -z "$DET_COMPOSE_VER" ]; }
 # Docker's docs give that for include (2.20.0 added it; 2.20.3's
 # compose-go resolves variables in included files differently). 2.19
 # skips include: and fails on the hw override: 'service "jellyfin" has
-# neither an image nor a build context specified' (S46, T-012).
+# neither an image nor a build context specified' (T-012).
 COMPOSE_MIN="2.20.3"
 MSG_COMPOSE_WHY="Older ones can't read compose.yaml (include:) and fail with"
 MSG_COMPOSE_ERR="  'service \"…\" has neither an image nor a build context specified'."

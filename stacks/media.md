@@ -79,7 +79,10 @@ docker compose logs jellyfin | grep -i vaapi
 
 You should see ffmpeg invoked with VAAPI arguments. If playback works but
 no VAAPI appears, it silently fell back to CPU. The two usual causes are
-below.
+below. (Read from Jellyfin's source at the pinned version, not run by
+Anteiku's tests; the `vainfo` check in
+[troubleshooting](../docs/troubleshooting.md#jellyfin-plays-but-on-the-cpu)
+was.)
 
 ## The two silent failures
 
@@ -145,8 +148,8 @@ than `/data`, change the mount in `stacks/media.yaml` to match the old
 path exactly, or your libraries, watch history and metadata will not
 resolve. A fresh install should leave it at `/data`.
 
-**Navidrome runs as your user, not as PUID.** It uses compose's `user:`
-instead. That matters because Docker creates a missing bind-mount
+**Navidrome runs as your user through compose's `user:`**, not through a
+`PUID` setting like the LinuxServer images. That matters because Docker creates a missing bind-mount
 directory as **root**, and Navidrome then cannot create its database:
 
 ```

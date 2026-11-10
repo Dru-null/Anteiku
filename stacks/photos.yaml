@@ -69,7 +69,7 @@ services:
   #     laptop that means fans at full tilt and a hot machine.
   #   - It competes with everything else on the box. Jellyfin transcodes
   #     and *arr imports will feel slow while it runs.
-  #   - The image is ~1.5 GB and the model cache grows by a few GB more.
+  #   - The image takes about 1.1 GB and the model cache a few GB more.
   #
   # The cpu limit below leaves cores free so the rest of your homelab
   # stays usable. It makes the scan take longer, on purpose.

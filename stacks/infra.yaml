@@ -37,8 +37,8 @@ services:
   #
   # PORT 53 MUST BE FREE FIRST. On most Ubuntu and Debian systems
   # systemd-resolved is already listening there and Pi-hole cannot
-  # start. doctor.sh detects this; infra.md has the fix. It is two
-  # commands, but do read why before running them.
+  # start. doctor.sh detects this; infra.md, Part 1, has the fix. It is
+  # a few commands, but do read why before running them.
   pihole:
     image: pihole/pihole:${PIHOLE_VERSION:-2026.10.0}
     container_name: ${STACK_PREFIX}pihole

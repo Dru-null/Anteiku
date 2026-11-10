@@ -136,7 +136,7 @@ For each service: **Hosts → Proxy Hosts → Add Proxy Host**
 > The two differ more often than you would expect: Vaultwarden is
 > `vaultwarden:80` even though you browse to it on 8222. qBittorrent is
 > the exception that uses its host port inside too (`qbittorrent:8181`
-> by default; see `stacks/arr.md`).
+> by default; see [arr Traps](arr.md#traps)).
 
 Repeat per service. A typical set:
 

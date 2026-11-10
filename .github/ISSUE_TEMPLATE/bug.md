@@ -15,7 +15,9 @@ labels: bug
 
 **`./doctor.sh` output**
 
-<!-- Read-only and prints no secrets: paste all of it. -->
+<!-- Read-only and prints no secrets: paste all of it. With Tailscale
+running, its Remote access line shows your Tailscale address and machine
+name: cut that line if you'd rather not share them. -->
 
 ```
 ```

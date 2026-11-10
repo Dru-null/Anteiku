@@ -49,7 +49,8 @@ trap 'rm -rf "$WORK"' EXIT
 SHELLCHECK_IMAGE="koalaman/shellcheck:v0.11.0"
 PYTHON_IMAGE="python:3.12.16-alpine3.24"
 PYTE_VERSION="0.8.2"
-# Only these may appear in yaml without a :-default (ARCHITECTURE.md).
+# Only these may appear in yaml without a :-default: setup.sh writes all
+# seven on every run, and compose reads every stack, profile on or off.
 ALLOWED_BARE="APPDATA MEDIA_ROOT PGID PUID STACK_PREFIX TZ UMASK"
 
 banner "anteiku $S_DOT check" "everything that can be checked without starting it"
@@ -808,7 +809,7 @@ else
   refused bk-oddkey "$rc" 'OFFSITE_ACCESS_KEY_ID holds a character a key' "backup.sh: a key holding # was not refused" \
     && ok "backup.sh: refuses a key its credentials file would cut (#)"
   # offsite-restore.sh, no terminal, keys missing: refused before restic.
-  # A docker stand-in first on the PATH logs any call (LESSONS 24): a
+  # A docker stand-in first on the PATH logs any call and fails it: a
   # broken refusal must fail here, never start restic on this machine.
   mkdir -p "$WORK/stub-docker"
   printf '#!/bin/sh
@@ -902,7 +903,7 @@ print(len(rows))
     fi
 
     # backup-cron.sh as cron starts it: from another folder, a HOME of its
-    # own, curl a stand-in. It once logged to ~/backup-logs (LESSONS 2):
+    # own, curl a stand-in. It once wrote its log to ~/backup-logs:
     # nothing may appear outside the copy. Its destination is inside.
     mkdir -p "$WORK/cron-home" "$WORK/stub"
     # Records the title and the URL, never -u; anything else is an unknown call.

@@ -597,7 +597,7 @@ case_docker_no_compose() {   # distro docker.io without the compose plugin
   next_lacks "Not checked without Docker"
 }
 
-# Compose below 2.20.3 can't read compose.yaml's include: (T-012, S46).
+# Compose below 2.20.3 can't read compose.yaml's include: (T-012).
 C_OLD_WHY="Older ones can't read compose.yaml (include:) and fail with"
 C_OLD_ERR="  'service \"…\" has neither an image nor a build context specified'."
 C_UPDATE="Update the plugin: https://docs.docker.com/compose/install/"
@@ -710,7 +710,7 @@ case_ports_ours() {   # this project's own Sonarr from a previous run: not a cla
 
 # doctor on a running install (T-074): its own containers on its own ports
 # are no clash. "Own" = the compose project in .env, as setup.sh's held_by_us.
-case_ports_doctor_own() {   # the five defaults up, as every S37 distro row had them
+case_ports_doctor_own() {   # the five defaults up, as every distro test install had them
   installed; install_env <<< "COMPOSE_PROJECT_NAME=anteiku-fx"
   listen 9696; listen 8181; listen 8989; listen 7878; listen 5055
   container fx-prowlarr 9696 anteiku-fx prowlarr; container fx-qbittorrent 8181 anteiku-fx qbittorrent
@@ -1154,7 +1154,7 @@ case_ports_md_unwritable() {   # ports.md can't be written: "Next" must not send
   next_lacks "cat ports.md"
 }
 
-case_env_write_fails() {   # the new .env (about 1.2 KB, S44) can't be written: the write's own reason, no disk guess (T-083)
+case_env_write_fails() {   # the new .env (about 1.2 KB) can't be written: the write's own reason, no disk guess (T-083)
   file_limit 1
   refuses
   real err "could not write the configuration: File too large. .env was not changed."
@@ -1573,7 +1573,7 @@ case_laptop_lid_suspends() {   # a laptop as Ubuntu ships it, on AC: doctor expl
   real_lacks "sudo tee"
 }
 
-case_laptop_lid_ignored() {   # this host's shape (S53, read only): Notebook on AC, logind ignores the lid: no commands, no pointer
+case_laptop_lid_ignored() {   # a captured laptop server, read only: Notebook on AC, logind ignores the lid: no commands, no pointer
   from 'captured: the maintainer server (laptop, DMI 10, Mains online, logind lid ignore), 2026-11-10, read only'
   chassis 10; supply ACAD Mains 1; supply BAT1 Battery; logind ignore ignore
   is lid runs
