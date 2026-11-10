@@ -152,6 +152,14 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   with your books, so no backup holds it. The port hints `doctor.sh` and
   `setup.sh` print (`grep ':53 '`) no longer match `:5353` too.
   `check.sh` checks every link between the docs.
+- A `setup.sh` re-run after the stack has started no longer tells you
+  to `sudo chown -R` all of `appdata`. Immich's database, Nginx Proxy
+  Manager and Uptime Kuma own their folders by then, and that `chown`
+  left Immich's running database logging `Permission denied` until it
+  was restarted. It now checks the media folder and the folders of the
+  services that run as you (read from `stacks/*.yaml`), names each wrong
+  one, and prints the `chown` for those folders only.
+  [docs/troubleshooting.md](docs/troubleshooting.md#database-could-not-be-opened)
 
 ---
 

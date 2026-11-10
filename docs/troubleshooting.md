@@ -87,7 +87,13 @@ find appdata -maxdepth 1 ! -user "$(id -u)"     # folders that aren't yours
 ```
 
 `appdata/npm` and `appdata/uptime-kuma` are root's on purpose: Nginx
-Proxy Manager and Uptime Kuma run as root. Leave those two as they are.
+Proxy Manager and Uptime Kuma run as root. Leave those two as they are,
+and `appdata/immich/postgres` too: it belongs to Immich's database.
+
+`./setup.sh` checks the same thing, and only where it matters: the
+media folder and the folders of the services that run as you. A
+re-run names each wrong folder (`wrong owner: …`) and prints the
+`chown` for those folders only.
 
 **Fix:**
 
@@ -96,12 +102,17 @@ sudo chown -R "$(id -u):$(id -g)" appdata/navidrome
 docker compose restart navidrome
 ```
 
-The error and the cause were reproduced on Anteiku's Navidrome; there,
-a folder of the user's in place of root's made it start. The `chown`
-itself wasn't run (it needs root). [media Traps](../stacks/media.md#traps)
-has the background. `setup.sh` makes every folder of the services you
-pick with the right owner, so this only happens to a folder it didn't
-make.
+Never `chown` all of `appdata`: a database that is running loses
+access to its own files. Immich's kept running, still "healthy", and
+logged `Permission denied` about once a second until it was restarted;
+the restart gave the folder back to it.
+
+The error and the cause were reproduced on Anteiku's Navidrome. With
+its folder made by Docker, a `setup.sh` re-run named it, and the
+`chown` it printed, then a restart, made Navidrome start.
+[media Traps](../stacks/media.md#traps) has the background. `setup.sh`
+makes every folder of the services you pick with the right owner, so
+this only happens to a folder it didn't make.
 
 ## Passwords
 
@@ -387,7 +398,7 @@ with the command to remove them.
 | Error text and confirm commands run on a test install of the pinned images | `not writable by user 'abc'`, `Database could not be opened!`, Jellyfin's group and `vainfo` lines, `No indexers available` (Sonarr; Radarr's wording from its source), the PIDS and init commands |
 | Run on test files | the password comparisons, the disk commands |
 | Error text from the project's source, at the pinned version | `password authentication failed` (Postgres), `FFmpeg exited with code` (Jellyfin), `Machine learning server became unhealthy` (Immich), the Default Site page (Nginx Proxy Manager), `Port 53 is taken by` (`setup.sh`) |
-| Not run | `nslookup` behind a VPN, the `chown` fixes, `ss` with `sudo` |
+| Not run | `nslookup` behind a VPN, the `chown` for the media folder, `ss` with `sudo` |
 
 Not here? [Open an issue](https://github.com/dru-null/Anteiku/issues)
 with your `./doctor.sh` output and the log line.
