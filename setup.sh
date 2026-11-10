@@ -1388,21 +1388,69 @@ _sel_has lazylibrarian && _mk "$MEDIA_DEF/books"
 _sel_has kavita        && _mk "$MEDIA_DEF/books"
 _sel_has qbittorrent   && _mk "$MEDIA_DEF/torrents"
 
-BAD_OWN=0
+# Which folders must be yours. After a first start some belong to their
+# service on purpose: Postgres (uid 999) takes Immich's database folder,
+# Nginx Proxy Manager, Uptime Kuma, Kavita and others run as root, Seerr
+# as uid 1000. A chown over those breaks what works, so only these are
+# checked: the media root, the appdata root itself, and the folders of the
+# services that run as you, read from stacks/*.yaml (PUID in the
+# environment, or user: "${PUID}…"). The yaml is the source, so a service
+# added there is checked without a list here to keep in step (T-107).
+_runs_as_you() {   # "<profile> <appdata folder>", one line per mount
+  awk '
+    function done_svc() { if (svc && mine && prof != "") for (i = 1; i <= n; i++) print prof, dir[i]; svc = 0 }
+    /^[^ #]/ { done_svc(); in_svc = ($0 ~ /^services:/); next }
+    in_svc && /^  [a-z0-9][a-z0-9_-]*:[[:space:]]*$/ { done_svc(); svc = 1; mine = 0; prof = ""; n = 0; next }
+    !svc { next }
+    /^[[:space:]]+(- )?PUID[:=]/ || /^[[:space:]]+user:[[:space:]]*"?\$\{PUID\}/ { mine = 1 }
+    /^[[:space:]]+profiles:/ { p = $0; sub(/^[^"]*"/, "", p); sub(/".*/, "", p); prof = p }
+    /^[[:space:]]+- \$\{APPDATA\}\// { d = $0; sub(/^.*\$\{APPDATA\}\//, "", d); sub(/[\/:].*/, "", d); dir[++n] = d }
+    END { done_svc() }' stacks/*.yaml
+}
+MINE=()
+while read -r p x; do
+  [ -n "$x" ] && _sel_has "$p" && MINE+=("$APPDATA_DEF/$x")
+done <<< "$(_runs_as_you)"
+_must_be_yours() {
+  local m
+  case "$1" in "$APPDATA_DEF"|"$MEDIA_DEF"|"$MEDIA_DEF"/*) return 0 ;; esac
+  for m in "${MINE[@]}"; do case "$1/" in "$m"/*) return 0 ;; esac; done
+  return 1
+}
+
+# Each wrong folder is named; the fix covers only the top-most ones, and
+# the appdata root without -R: what is inside it is its services'.
+BAD_OWN=0; BAD_ROOT=0; BAD_APP=(); BAD_MEDIA=()
+_under() { local t="$1" x; shift; for x in "$@"; do case "$t/" in "$x"/*) return 0 ;; esac; done; return 1; }
 while IFS= read -r d; do
   [ -z "$d" ] && continue
-  [ "$(stat -c %u "$d" 2>/dev/null)" != "$DET_UID" ] && { BAD_OWN=$((BAD_OWN+1)); note "wrong owner: $d"; }
-done <<< "$(find "$APPDATA_DEF" "$MEDIA_DEF" -maxdepth 2 -type d 2>/dev/null)"
+  _must_be_yours "$d" || continue
+  [ "$(stat -c %u "$d" 2>/dev/null)" != "$DET_UID" ] || continue
+  BAD_OWN=$((BAD_OWN+1)); note "wrong owner: $d"
+  case "$d" in
+    "$MEDIA_DEF"|"$MEDIA_DEF"/*) _under "$d" "${BAD_MEDIA[@]}" || BAD_MEDIA+=("$d") ;;
+    "$APPDATA_DEF") BAD_ROOT=1 ;;
+    *) _under "$d" "${BAD_APP[@]}" || BAD_APP+=("$d") ;;
+  esac
+done <<< "$(find "$APPDATA_DEF" "$MEDIA_DEF" -maxdepth 2 -type d 2>/dev/null | LC_ALL=C sort)"
 
 if [ "$BAD_OWN" -gt 0 ]; then
   warn "$BAD_OWN directory(ies) are not owned by uid $DET_UID."
   note "Containers running as your user will fail to write to them."
   note "Fix before starting:"
   # chown where the filesystem keeps owners; elsewhere only a mount option can.
-  OWN_DIRS=""; NO_OWN=""
-  if fs_lacks "$APP_TYPE" owners; then NO_OWN="$APP_TYPE"; else OWN_DIRS="$APPDATA_DEF"; fi
-  if fs_lacks "$MEDIA_TYPE" owners; then NO_OWN="$MEDIA_TYPE"; else OWN_DIRS="${OWN_DIRS:+$OWN_DIRS }$MEDIA_DEF"; fi
-  [ -n "$OWN_DIRS" ] && note "  sudo chown -R ${DET_UID}:${DET_GID} $OWN_DIRS"
+  OWN_DIRS=(); NO_OWN=""
+  if [ "$BAD_ROOT" -eq 1 ] || [ "${#BAD_APP[@]}" -gt 0 ]; then
+    if fs_lacks "$APP_TYPE" owners; then NO_OWN="$APP_TYPE"
+    else
+      [ "$BAD_ROOT" -eq 1 ] && note "  sudo chown ${DET_UID}:${DET_GID} $APPDATA_DEF"
+      OWN_DIRS+=("${BAD_APP[@]}")
+    fi
+  fi
+  if [ "${#BAD_MEDIA[@]}" -gt 0 ]; then
+    if fs_lacks "$MEDIA_TYPE" owners; then NO_OWN="$MEDIA_TYPE"; else OWN_DIRS+=("${BAD_MEDIA[@]}"); fi
+  fi
+  [ "${#OWN_DIRS[@]}" -gt 0 ] && note "  sudo chown -R ${DET_UID}:${DET_GID} ${OWN_DIRS[*]}"
   [ -n "$NO_OWN" ] && note "  on $NO_OWN: mount the disk with uid=${DET_UID},gid=${DET_GID} (chown can't change owners there)"
 fi
 if [ "$MK_FAIL" -gt 0 ]; then
@@ -1410,7 +1458,7 @@ if [ "$MK_FAIL" -gt 0 ]; then
   note "Docker would create them as root at start, and the services could"
   note "not write there. Fix the cause, then run ./setup.sh again."
 fi
-[ "$BAD_OWN" -eq 0 ] && [ "$MK_FAIL" -eq 0 ] && ok "all data directories exist and are owned by $DET_UID:$DET_GID"
+[ "$BAD_OWN" -eq 0 ] && [ "$MK_FAIL" -eq 0 ] && ok "all data directories exist; the ones that must be yours are owned by $DET_UID:$DET_GID"
 
 # qBittorrent asks the router to forward its torrent port (UPnP/NAT-PMP)
 # unless its config says otherwise, and 5.3 says nothing on a first start.

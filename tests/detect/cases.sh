@@ -1090,9 +1090,33 @@ case_storage_owner_exfat() {   # owned by someone else on exFAT: chown is the wr
   disk_at "$FX/usb" 900 exfat "$FX/usb"; setup_env "MEDIA_ROOT=$FX/usb/media"
   setup note "  mount it with uid=4242,gid=4242 (chown can't, on exfat)"
   setup_lacks "sudo chown -R 4242:4242 $FX/usb/media"
-  real note "  sudo chown -R 4242:4242 $FX/real/appdata"
+  real note "  sudo chown 4242:4242 $FX/real/appdata"
+  real note "  sudo chown -R 4242:4242 $FX/real/appdata/jellyfin $FX/real/appdata/prowlarr $FX/real/appdata/qbittorrent $FX/real/appdata/radarr $FX/real/appdata/sonarr"
   real note "  on exfat: mount the disk with uid=4242,gid=4242 (chown can't change owners there)"
   real_lacks "sudo chown -R 4242:4242 $FX/real/appdata $FX/usb/media"
+}
+
+# A re-run after a first start (T-107). Every folder here reads as someone
+# else's (uid 4242 is not the folders' owner), so only the rule decides what is
+# named: the folders of services that run as you (PUID or user: "${PUID}" in
+# their yaml) and the media root. Immich's database (uid 999), Uptime Kuma and
+# Nginx Proxy Manager (root) and Seerr (uid 1000) own theirs on purpose, and no
+# chown may cover them: not the whole appdata, and not recursive at its root.
+case_storage_owner_rerun() {   # sonarr, navidrome + root-run services: only their folders and the media root
+  user_ids 4242 4242
+  prev_env <<'ENV'
+COMPOSE_PROFILES=sonarr,navidrome,seerr,immich,uptime-kuma,nginx-proxy-manager
+ENV
+  real note "wrong owner: $FX/real/appdata/sonarr"
+  real note "wrong owner: $FX/real/appdata/navidrome"
+  real note "wrong owner: $FX/real/media/series"
+  real note "  sudo chown 4242:4242 $FX/real/appdata"
+  real note "  sudo chown -R 4242:4242 $FX/real/appdata/navidrome $FX/real/appdata/sonarr $FX/real/media"
+  real_lacks "wrong owner: $FX/real/appdata/immich"
+  real_lacks "wrong owner: $FX/real/appdata/uptime-kuma"
+  real_lacks "wrong owner: $FX/real/appdata/nginx-proxy-manager"
+  real_lacks "wrong owner: $FX/real/appdata/seerr"
+  real_lacks "-R 4242:4242 $FX/real/appdata "
 }
 
 case_storage_media_unwritable() {   # it exists, you can't write to it
