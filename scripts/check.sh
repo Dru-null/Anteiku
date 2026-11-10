@@ -7,8 +7,9 @@
 #                               (needs python3 with venv; downloads pyte)
 #
 #  Run it before every commit. Exits non-zero if anything failed.
-#  Starts no containers and writes nothing here: setup.sh runs in a
-#  temporary copy, with its own prefix and project name.
+#  Starts none of the stack's containers (only its own tools' ones) and
+#  writes nothing here: setup.sh runs in a temporary copy, with its own
+#  prefix and project name.
 #
 #  Needs bash, git and Docker. shellcheck always runs from its pinned
 #  image; python3 from the host when installed, else from a container.
@@ -120,6 +121,13 @@ for k in $STACKS; do
   [ -f "stacks/$k.md" ]   || { err "catalogue stack '$k' has no guide stacks/$k.md"; n=$((n+1)); }
 done
 [ "$n" -eq 0 ] && ok "every stack file is included and has a guide"
+
+# Links between the docs: a renamed file or heading leaves a link that
+# GitHub shows as working text and opens as a 404 (T-081).
+MD=(); for f in "${FILES[@]}"; do case "$f" in *.md) MD+=("$f") ;; esac; done
+if out="$(py tests/linkcheck.py "${MD[@]}" 2>&1)"
+then ok "links: $(tail -n 1 <<< "$out" | cut -d' ' -f1) relative links and anchors in ${#MD[@]} Markdown files resolve"
+else err "links: a relative link or anchor points at nothing"; grep -v ' links checked, ' <<< "$out" | indent; fi
 
 # ------------------------------------------------------------ rules
 h1 "Rules"

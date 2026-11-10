@@ -86,6 +86,9 @@ without making its folder first does the same.
 find appdata -maxdepth 1 ! -user "$(id -u)"     # folders that aren't yours
 ```
 
+`appdata/npm` and `appdata/uptime-kuma` are root's on purpose: Nginx
+Proxy Manager and Uptime Kuma run as root. Leave those two as they are.
+
 **Fix:**
 
 ```bash
@@ -310,8 +313,8 @@ For Radarr, `radarr` and port `7878`.
 **Means:** Kuma only watches what has a monitor. A service added after
 the monitors were made has none.
 
-**Confirm:** the monitors your install should have, against the ones
-in Kuma (needs `python3` on the machine):
+**Confirm:** the monitors your install should have (needs `python3` on
+the machine); compare them with the list in Kuma:
 
 ```bash
 ./scripts/kuma-bootstrap.sh --dry-run

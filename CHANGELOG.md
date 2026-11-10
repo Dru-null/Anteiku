@@ -139,6 +139,19 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   what you see: the exact text, what it really means, a command that
   confirms it, and the fix. `doctor.sh`'s summary and the README point
   to it.
+- The guides were read against today's scripts and fixed where they had
+  drifted. The ones that change what you type: `stacks/arr.md` and
+  `stacks/books.md` used `${MEDIA_ROOT}` in commands, which your shell
+  doesn't have (they now read it from `.env`); Vaultwarden's address is
+  `VAULTWARDEN_DOMAIN` in `.env`, applied with `docker compose up -d`,
+  not `DOMAIN` and a restart; on a server that runs Pi-hole, set
+  Tailscale's `--accept-dns=false` straight after installing it, and
+  change settings later with `tailscale set`. `stacks/infra.md` called
+  `.box` reserved: it is a real top-level domain, and `.internal` is the
+  one reserved for private networks. Calibre-Web's `metadata.db` lives
+  with your books, so no backup holds it. The port hints `doctor.sh` and
+  `setup.sh` print (`grep ':53 '`) no longer match `:5353` too.
+  `check.sh` checks every link between the docs.
 
 ---
 

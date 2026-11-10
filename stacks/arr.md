@@ -5,7 +5,7 @@ watches for it, files it correctly and keeps it tidy.
 
 > **This stack ships no indexers and no sources.** Prowlarr starts empty.
 > What you point it at is your decision and your responsibility. See
-> "Scope" in the README.
+> the note at the top of the [README](../README.md).
 
 ## The services
 
@@ -104,7 +104,8 @@ docker compose logs -f sonarr      # follow one service
 docker compose exec sonarr curl -sI http://qbittorrent:8181   # your qBittorrent port
 
 # hardlinks working? link count 2 means yes, 1 means it copied:
-find ${MEDIA_ROOT}/series -type f -links +1 | head
+M="$(sed -n 's/^MEDIA_ROOT=//p' .env)"     # your media root, from .env
+find "$M/series" -type f -links +1 | head
 ```
 
 That last one is worth running early. Catching a broken path contract on
@@ -147,11 +148,12 @@ harmless on the Windows machine that opens the share.
 
 ```bash
 # nothing executable should ever be in a media library:
-find ${MEDIA_ROOT} -type f \( -iname '*.exe' -o -iname '*.scr' \
+M="$(sed -n 's/^MEDIA_ROOT=//p' .env)"     # in your Anteiku folder
+find "$M" -type f \( -iname '*.exe' -o -iname '*.scr' \
   -o -iname '*.bat' -o -iname '*.msi' \)
 
 # extension proves nothing — check what the file actually is:
-file -b "${MEDIA_ROOT}/series/Some Show/S01E01.mkv"
+file -b "$M/series/Some Show/S01E01.mkv"
 ```
 
 Target state for the first command is zero results.

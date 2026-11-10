@@ -395,9 +395,9 @@ though `psql` exits 0. Dumps from older Immich versions can need an extra
 You do **not** need the original database password to restore — the
 dump is plain SQL. What you *do* need is the photo files under
 `PHOTOS_LOCATION` back in place first: the database knows about each
-photo, but the photos themselves live on disk, and `backup.sh` does not
-copy them. Restore them from your own copy ([Your photos](#your-photos))
-before step 4.
+photo, but the photos themselves live on disk, and `backup.sh`'s local
+backup does not copy them. Restore them from your own copy
+([Your photos](#your-photos)) or the off-site one before step 4.
 
 ---
 
@@ -461,6 +461,8 @@ rebuild themselves:
 - `jellyfin/config/data/metadata` — re-fetchable artwork, often gigabytes
 - `jellyfin/config/cache`, transcode scratch
 - `immich/model-cache` — re-downloadable ML models
+- `calibre-web/config/processed_books` and `thumbnails` — re-convertible
+  copies and thumbnails, which regenerate
 - `*/logs/*.log`
 
 On a real system this is the difference between a 2.4 GB nightly and one

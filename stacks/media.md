@@ -168,6 +168,7 @@ mkdir -p appdata/<service> && chown $(id -u):$(id -g) appdata/<service>
 you have RAM to spare. Leaving it on a slow disk makes seeking feel bad
 even when the encode itself is fast.
 
-**Navidrome and Kavita mount their libraries read-only.** Deliberate — a
-player has no business writing to your library. Remove `:ro` only if you
-specifically want in-app editing.
+**Navidrome mounts its library read-only.** Deliberate — a player has
+no business writing to your library. Remove `:ro` only if you
+specifically want in-app editing. Kavita's `books` mount is not
+read-only today.

@@ -30,7 +30,8 @@ immediately** — Admin → Users → admin.
 **2. Add a book.** Copy an epub into the ingest folder:
 
 ```bash
-cp some-book.epub ${MEDIA_ROOT}/books/ingest/
+M="$(sed -n 's/^MEDIA_ROOT=//p' .env)"     # in your Anteiku folder
+cp some-book.epub "$M/books/ingest/"
 ```
 
 Within a minute it disappears from `ingest/` and appears in the library.
@@ -60,7 +61,10 @@ two tools filing the same book can collide.
 the files, and holds every title, author, series and tag. Losing it
 leaves you with a pile of loosely named files. Your app config —
 shelves, read status, users — is in `appdata/calibre-web`, which
-`scripts/backup.sh` covers.
+`scripts/backup.sh` covers. `metadata.db` is not covered: it sits in
+`books/` under your media root, and media is never backed up. Copy it
+yourself, or the whole `books/` folder, as for
+[your photos](../docs/backups.md#your-photos).
 
 **The converted copies are disposable.** `processed_books` and
 `thumbnails` can grow to gigabytes and are excluded from backups on

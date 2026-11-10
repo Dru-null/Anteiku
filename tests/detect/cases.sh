@@ -785,10 +785,10 @@ case_ports_dns() {   # systemd-resolved on 53, the Pi-hole trap
 
 case_ports_netstat_only() {   # no ss (net-tools only): the hint names the tool that is there
   listen 8989; no_tool ss
-  is port.8989 "used by unidentified (try: sudo netstat -lntup | grep :8989)"
+  is port.8989 "used by unidentified (try: sudo netstat -lntup | grep ':8989 ')"
   env_is PORT_SONARR 8990
   doctor info "ss not found: ports are checked with netstat instead; their owner is only named for a container."
-  doctor warn "8989 (Sonarr) is already in use by: unidentified (try: sudo netstat -lntup | grep :8989)"
+  doctor warn "8989 (Sonarr) is already in use by: unidentified (try: sudo netstat -lntup | grep ':8989 ')"
 }
 
 case_ports_no_tools() {   # neither ss nor netstat: never "free"; setup keeps the default and says so

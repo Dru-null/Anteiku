@@ -827,7 +827,7 @@ if _sel_has pihole; then
       note "53 for local lookups. Freeing it is safe and reversible — the"
       note "two commands and what they do are in stacks/infra.md."
     else
-      note "Find out what holds it:  sudo ss -lntup | grep :53"
+      note "Find out what holds it:  sudo ss -lntup | grep ':53 '"
     fi
     note "Free port 53, then re-run this script."
   else
