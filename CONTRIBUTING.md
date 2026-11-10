@@ -7,7 +7,7 @@ rules first; a change that breaks one won't be merged however good it is.
 
 - **No indexers, no sources, ever.** No indexer lists, trackers, "where to
   get" links or hints, in code, docs, issues or comments. This project
-  ships infrastructure only. See the Scope section of the README.
+  ships infrastructure only. See the note at the top of the README.
 - **Accurate over complete.** Check behaviour against the running software
   and upstream docs before writing it down. If you couldn't test something
   (another GPU, another distro, ARM), say so in the doc.
@@ -56,6 +56,25 @@ folder (some files are owned by root).
 
 Test re-runs as well as first installs: run `setup.sh` again and add a
 service. That path is where most bugs have been.
+
+## Suggesting a service
+
+Open an issue with the
+[Suggest a service](https://github.com/dru-null/Anteiku/issues/new?template=service.md)
+template before writing any code. A service fits when it is:
+
+- **Self-hosted**: it runs on the one machine, with no account at the
+  project's own cloud.
+- **Maintained**: recent releases, and issues that get answers.
+- **Infrastructure, not sources**: nothing that lists, finds or solves
+  access to indexers or trackers. The first rule above.
+- **Pinnable**: a published image with exact version tags. `check.sh`
+  refuses `latest` and other tags that move.
+- **Useful to a beginner on one machine**: something a household would
+  use, not a cluster tool.
+
+The issue needs the image (registry and name), what it's for and who
+would use it, and how it fits with the services already here.
 
 ## Adding a service
 
