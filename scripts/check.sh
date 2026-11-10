@@ -129,6 +129,12 @@ MD=(); for f in "${FILES[@]}"; do case "$f" in *.md) MD+=("$f") ;; esac; done
 if out="$(py tests/linkcheck.py "${MD[@]}" 2>&1)"
 then ok "links: $(tail -n 1 <<< "$out" | cut -d' ' -f1) relative links and anchors in ${#MD[@]} Markdown files resolve"
 else err "links: a relative link or anchor points at nothing"; grep -v ' links checked, ' <<< "$out" | indent; fi
+# The docs the scripts and yaml send people to, and the headings they
+# name: the person sent there is the one already stuck (T-105).
+PTR=(); for f in "${FILES[@]}"; do case "$f" in *.sh|*.yaml|*.py|.env.example) PTR+=("$f") ;; esac; done
+if out="$(py tests/linkcheck.py --pointers "${PTR[@]}" 2>&1)"
+then ok "doc pointers: $(tail -n 1 <<< "$out" | cut -d' ' -f1) in ${#PTR[@]} scripts and yaml files name docs and headings that exist"
+else err "doc pointers: a script or yaml names a doc or heading that isn't there"; grep -v ' pointers checked, ' <<< "$out" | indent; fi
 
 # ------------------------------------------------------------ rules
 h1 "Rules"

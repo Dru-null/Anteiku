@@ -26,7 +26,8 @@ rules first; a change that breaks one won't be merged however good it is.
 
 It must print `All checks passed.` and exit 0. It lints (shellcheck from
 its pinned image, the same version as CI, never a host copy), parses, checks
-every compose combination, runs `setup.sh` in a temporary copy, runs
+the links between the docs and every doc and heading a script or yaml
+file points people at, checks every compose combination, runs `setup.sh` in a temporary copy, runs
 detection against fake machines (`tests/detect`), drives the picker, and
 scans for secrets and image metadata. It starts none of the
 stack's containers.
