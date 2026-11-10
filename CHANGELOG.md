@@ -130,6 +130,10 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   short "Yours to keep" section. A "Suggest a service" issue template,
   and what a service needs to fit, in CONTRIBUTING.md. The README said
   21 services; there are 20.
+- New: [docs/troubleshooting.md](docs/troubleshooting.md), errors by
+  what you see: the exact text, what it really means, a command that
+  confirms it, and the fix. `doctor.sh`'s summary and the README point
+  to it.
 
 ---
 

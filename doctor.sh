@@ -387,5 +387,6 @@ elif [ "$FINDINGS_WARN" -gt 0 ]; then
 else
   printf '  %sAll clear.%s Run: %s./setup.sh%s\n' "$C_OK" "$C_RST" "$C_B" "$C_RST"
 fi
+printf '  Something broken later? %sdocs/troubleshooting.md%s, by what you see.\n' "$C_B" "$C_RST"
 echo
 exit 0
