@@ -248,7 +248,7 @@ stack_label() {
   case "$1" in
     arr)        echo "find, fetch and organise" ;;
     media)      echo "watch, listen, read" ;;
-    infra)      echo "proxy, network-wide DNS, update alerts" ;;
+    infra)      echo "proxy, network-wide DNS" ;;
     monitoring) echo "know when something breaks" ;;
     photos)     echo "phone photo backup" ;;
     extras)     echo "alerts and passwords" ;;
@@ -825,7 +825,7 @@ if _sel_has pihole; then
     if who_has_port 53 | grep -qi 'systemd-resolve'; then
       note "The holder is systemd-resolved, the usual culprit. It reserves"
       note "53 for local lookups. Freeing it is safe and reversible — the"
-      note "two commands and what they do are in stacks/infra.md."
+      note "commands and what they do are in stacks/infra.md, Part 1."
     else
       note "Find out what holds it:  sudo ss -lntup | grep ':53 '"
     fi

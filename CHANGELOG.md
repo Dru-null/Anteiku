@@ -160,6 +160,26 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   services that run as you (read from `stacks/*.yaml`), names each wrong
   one, and prints the `chown` for those folders only.
   [docs/troubleshooting.md](docs/troubleshooting.md#database-could-not-be-opened)
+- The README says near the top that Anteiku is young and has run for
+  real on one machine, links what has run where, and says to report
+  what doesn't work as a guide says, with your `doctor.sh` output.
+  [docs/compatibility.md](docs/compatibility.md)
+- The docs no longer call `doctor.sh`'s output safe to paste whole:
+  with Tailscale running, its Remote access line shows your Tailscale
+  address and machine name. The bug template says to cut that line if
+  you'd rather not share them.
+- The picker's infra line no longer says "update alerts": that was
+  Diun, removed in `2026.10.1`.
+- Every doc was read against the scripts again. Fixed:
+  `stacks/arr.yaml` pointed at a README section that is gone;
+  `stacks/monitoring.yaml` now says beside the Uptime Kuma pin why it
+  stays on 1.x ([docs/updating.md](docs/updating.md#uptime-kuma));
+  [stacks/photos.md](stacks/photos.md#traps) gave a command reading
+  Immich's newest compose file, not your release's, and both it and
+  `stacks/photos.yaml` now give the machine learning image's measured
+  size (about 1.1 GB; the yaml said 1.5); `.env.example` gave automatic
+  updates as "Sunday night": they run with the weekly check, Sundays at
+  04:30.
 
 ---
 

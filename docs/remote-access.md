@@ -175,8 +175,8 @@ sudo tailscale serve --bg --https=443 http://127.0.0.1:8096
 
 Gives a real, valid HTTPS certificate on your
 `machine.tailnet.ts.net` name, reachable only from your tailnet. This
-solves the LAN-HTTPS problem described in `../stacks/infra.md` without
-owning a domain.
+solves the LAN-HTTPS problem described in
+[infra: HTTPS](../stacks/infra.md#https) without owning a domain.
 
 > `tailscale funnel` makes that URL public to the entire internet.
 > That is port forwarding with extra steps. Use it deliberately or not

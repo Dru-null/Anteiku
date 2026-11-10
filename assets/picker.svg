@@ -46,7 +46,7 @@
 <text x="97.6" y="341.5" fill="#141414" font-weight="700" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">kavita</text>
 <text x="274.0" y="341.5" fill="#8c8a85" textLength="201.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Ebooks and comics reader</text>
 <text x="38.8" y="377.5" fill="#e4e1da" font-weight="700" textLength="42.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">infra</text>
-<text x="89.2" y="377.5" fill="#6a6a6a" textLength="336.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· proxy, network-wide DNS, update alerts</text>
+<text x="89.2" y="377.5" fill="#6a6a6a" textLength="210.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">· proxy, network-wide DNS</text>
 <text x="55.6" y="395.5" fill="#8c8a85" textLength="25.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">[ ]</text>
 <text x="97.6" y="395.5" fill="#e4e1da" textLength="159.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">nginx-proxy-manager</text>
 <text x="274.0" y="395.5" fill="#8c8a85" textLength="336.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Reverse proxy: nice hostnames, not ports</text>

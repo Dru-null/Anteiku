@@ -44,7 +44,7 @@ All of it runs on your **CPU** unless you have a supported GPU.
 - Everything else on the box feels slow while it runs. Jellyfin
   transcodes, *arr imports, the web UIs
 - On a laptop or mini-PC: sustained full load, hot machine, loud fans
-- The image takes about 1 GB of disk; the model cache adds a few GB more
+- The image takes about 1.1 GB of disk; the model cache adds a few GB more
 
 This is the single most demanding thing in this repo. On a modest
 machine the initial scan is not a background task you forget about —
@@ -187,11 +187,16 @@ copy `PHOTOS_LOCATION`. Copy the files yourself with one `rsync` line
 takes them too.
 
 **The Postgres image is version-locked to the server.** Immich ties
-them together and the tag naming changes. Before a major upgrade:
+them together and the tag naming changes. Before setting
+`IMMICH_VERSION` yourself, read the pair from that release's own compose
+file (`<version>` as in `v3.3.5`):
 
 ```bash
-curl -s https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml | grep image:
+curl -sL https://github.com/immich-app/immich/releases/download/<version>/docker-compose.yml | grep image:
 ```
+
+They have no override here ([updating: Immich](../docs/updating.md#immich)):
+if they changed, wait for an Anteiku release that moves them.
 
 **First start takes a minute.** The server may log that the database is
 still starting and retry. That is a startup race, it resolves itself,

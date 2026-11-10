@@ -8,6 +8,11 @@ A dynamic homelab installer that builds your starter kit, whatever your hardware
 
 Named after a café where anyone could find a seat and a place to start.
 
+Young, and so far run for real on one machine; every other setup is
+[mocked or untested](docs/compatibility.md). Something not working as a
+guide says? [Open an issue](https://github.com/Dru-null/Anteiku/issues/new?template=bug.md)
+with your `doctor.sh` output.
+
 > [!IMPORTANT]
 > **No indexers, no trackers, no sources.** Anteiku installs the software and
 > nothing to put in it. Prowlarr starts empty and stays that way until you set
@@ -87,7 +92,7 @@ Debian 12 or 13 without Docker: steps 5 to 7 below work there as written, with D
    ```bash
    git clone https://github.com/dru-null/Anteiku.git anteiku && cd anteiku
    ```
-2. See what you have. Read-only, and safe to paste into an issue:
+2. See what you have. Read-only, and it prints no passwords:
    ```bash
    ./doctor.sh
    ```
@@ -121,7 +126,7 @@ Everything here has a guide. Read the one for what you're doing before changing 
 | [`docs/updating.md`](docs/updating.md) | new releases, `update.sh`, moving one service to a new version, and back |
 | [`docs/compatibility.md`](docs/compatibility.md) | which distros, GPUs and setups have been tested, and how |
 
-If a guide doesn't make sense, ask. An AI assistant is good at explaining a term, an error or a log line; paste the error and the part of the guide you're on. `doctor.sh` and `setup.sh` output is safe to share. Never paste your `.env`: it holds your passwords.
+If a guide doesn't make sense, ask. An AI assistant is good at explaining a term, an error or a log line; paste the error and the part of the guide you're on. `doctor.sh` and `setup.sh` output holds no passwords. Never paste your `.env`: it holds them all.
 
 Still stuck, or found something wrong: [open an issue](https://github.com/dru-null/Anteiku/issues) with your `doctor.sh` output.
 

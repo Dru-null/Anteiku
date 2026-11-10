@@ -127,5 +127,5 @@ saying why. One change per commit.
 
 ## Reporting a bug
 
-Use the bug template. It asks for `doctor.sh` output, which is safe to
-paste, and the part of `setup.sh` output that went wrong.
+Use the bug template. It asks for `doctor.sh` output, which holds no
+passwords, and the part of `setup.sh` output that went wrong.

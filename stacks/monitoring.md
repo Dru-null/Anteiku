@@ -103,7 +103,7 @@ mapping — and it keeps working if a published port moves.
 Note the internal port is often not the one you browse to:
 Vaultwarden is `vaultwarden:80` even though you open it on 8222.
 qBittorrent's monitor follows `PORT_QBITTORRENT` from `.env`: it listens
-on that port inside Docker too (see `stacks/arr.md`).
+on that port inside Docker too (see [arr Traps](arr.md#traps)).
 
 ### Real health endpoints where they exist
 

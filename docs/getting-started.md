@@ -21,7 +21,7 @@ server, a fast CPU or a graphics card.
 
 The maintainer's machine (Intel i5-9300H, 4 cores, 16 GB) runs every
 Anteiku service, 22 containers, for each release check, next to 52
-containers of its own. During the November 2026 check its free memory
+containers of its own. During the check on 2026-11-06 its free memory
 never went below 1.7 GiB. Memory per service hasn't been measured one
 by one.
 
@@ -181,7 +181,9 @@ git clone https://github.com/dru-null/Anteiku.git anteiku && cd anteiku
 It ends with a summary that counts the blockers (fix those before going
 on) and the warnings (worth reading, not stopping for); each one is
 explained in its section above. Its output holds no
-passwords, so it's safe to paste into an issue.
+passwords. With Tailscale running, its Remote access line shows your
+Tailscale address and machine name: cut it before pasting the rest
+into an issue if you'd rather not share them.
 
 **3. Pick and write.** `setup.sh` shows a list of services with a
 starter set ticked. Then it explains each decision (ports, paths, the
