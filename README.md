@@ -14,10 +14,27 @@ Named after a café where anyone could find a seat and a place to start.
 > it up yourself. What goes in is your call and your responsibility.
 > Rip the discs you own, buy DRM-free, use the public domain.
 
+New to this? [Getting started](docs/getting-started.md) goes from
+choosing a machine to your first services running.
+
+## Yours to keep
+
+You pick what to install; nothing is required. What `setup.sh` writes is
+ordinary Docker Compose and a `.env`: read it, change it, move it, or
+keep running it without Anteiku. Missing a service?
+[Suggest it](https://github.com/dru-null/Anteiku/issues/new?template=service.md).
+It has to fit these:
+
+- **No sources.** Anteiku ships software, never indexers, trackers or where to get things.
+- **Detect, explain, then act.** `doctor.sh` only reads. `setup.sh` says why it chose what it did, and starts nothing.
+- **Safe to re-run, safe to paste.** A re-run only adds. What the scripts print holds no passwords.
+- **Nothing new on the host.** The scripts need Bash, Docker and the usual system tools; anything more runs in a container.
+- **Pinned and tested.** Every image is an exact version, tested with all the others before a release.
+
 ## What it does
 
 - **Reads your machine first.** `doctor.sh` surveys CPU, RAM, GPU, ports and disks, and writes nothing.
-- **Lets you pick.** 21 services in a full-screen list, a small starter set ticked. Taken ports shift to the next free one; `ports.md` records what each service got.
+- **Lets you pick.** 20 services in a full-screen list, a small starter set ticked. Taken ports shift to the next free one; `ports.md` records what each service got.
 - **Fits the hardware.** An Intel, NVIDIA or AMD GPU is wired into Jellyfin for transcoding; without one, it runs on the CPU.
 - **Re-runs safely.** Installed services are locked, so a re-run only adds. Passwords, ports, paths and lines you added to `.env` stay as they were.
 - **Watches and backs up.** Uptime monitors are generated from what you installed. Backups cover configs, secrets and databases.
@@ -32,6 +49,8 @@ An old laptop, a mini-PC or a spare desktop. 4 GiB of RAM works, 8 is comfortabl
 Linux reports a little less than is installed (about 3.7 GiB on a 4 GiB machine); `doctor.sh` allows for that.
 Disk: 10 GB free for the starter set, 25 GB for every service, plus room for your media.
 The images go where Docker keeps them, usually the system disk, not the folder you clone into; `doctor.sh` checks both.
+On a laptop, `doctor.sh` says whether closing the lid would stop it, and how to change that.
+More on hardware, disks and power: [getting started](docs/getting-started.md#the-machine).
 If it already runs Linux with Docker, skip to [Running it yourself](#running-it-yourself).
 Debian 12 or 13 without Docker: steps 5 to 7 below work there as written, with Docker's Debian page in step 6.
 
@@ -94,6 +113,7 @@ Everything here has a guide. Read the one for what you're doing before changing 
 
 | Guide | Covers |
 |---|---|
+| [`docs/getting-started.md`](docs/getting-started.md) | hardware, the operating system, Docker, the first run, and what to set up next |
 | [`stacks/*.md`](stacks/) | each service: what it's for, setup order, and the traps that catch people |
 | [`docs/remote-access.md`](docs/remote-access.md) | reaching your services from outside, safely |
 | [`docs/backups.md`](docs/backups.md) | what's backed up, scheduling, testing a restore |

@@ -124,6 +124,12 @@ interest. How to update: [docs/updating.md](docs/updating.md).
   run, and with `--yes` only points at `doctor.sh`. `doctor.sh` also
   shows the chassis and whether a laptop is on AC. Nothing is said on
   other machines. [docs/compatibility.md](docs/compatibility.md)
+- New: [docs/getting-started.md](docs/getting-started.md), from choosing
+  a machine (memory, disks, graphics, laptops and power) to the first
+  run and what to set up after it. The README links it first, and has a
+  short "Yours to keep" section. A "Suggest a service" issue template,
+  and what a service needs to fit, in CONTRIBUTING.md. The README said
+  21 services; there are 20.
 
 ---
 
